@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QGridLayout, QCalendarWidget, QTextEdit,
-    QDialog, QLineEdit, QComboBox, QFormLayout, QMessageBox, QSizePolicy
+    QDialog, QLineEdit, QComboBox, QFormLayout, QMessageBox, QSizePolicy, QStackedWidget
 )
 from PyQt5.QtGui import QFont, QPixmap, QMovie
 from PyQt5.QtCore import Qt, QTimer
@@ -10,7 +10,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.animation import FuncAnimation
 import math
-from ecg.twelve_lead_test import TwelveLeadTest
+from ecg.twelve_lead_test import ECGTestPage
 import os
 import json
 
@@ -335,8 +335,13 @@ class Dashboard(QWidget):
         self.user_label.setText("Not signed in")
         self.sign_btn.setText("Sign In")
     def go_to_lead_test(self):
-        # Simulate redirect to ECG 12-lead test page
-        QMessageBox.information(self, "ECG Lead Test 12", "Redirected to ECG Lead Test 12 page! (Demo)")
+        # Open the 12-lead ECG test window
+        self.lead_test_window = QStackedWidget()
+        self.ecg_test_page = ECGTestPage("12 Lead ECG Test", self.lead_test_window)
+        self.lead_test_window.addWidget(self.ecg_test_page)
+        self.lead_test_window.setCurrentWidget(self.ecg_test_page)
+        self.lead_test_window.resize(1200, 900)
+        self.lead_test_window.show()
     def update_internet_status(self):
         import socket
         try:

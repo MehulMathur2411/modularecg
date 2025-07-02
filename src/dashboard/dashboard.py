@@ -67,6 +67,9 @@ class Dashboard(QWidget):
         self.medical_mode = False
         self.setWindowTitle("ECG Monitor Dashboard")
         self.setGeometry(100, 100, 1300, 900)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
+        self.setWindowState(Qt.WindowMaximized)
+        self.center_on_screen()
         # --- Plasma GIF background ---
         self.bg_label = QLabel(self)
         self.bg_label.setGeometry(0, 0, 1300, 900)
@@ -306,6 +309,23 @@ class Dashboard(QWidget):
         self.ecg_line, = self.ecg_canvas.axes.plot(self.ecg_x, self.ecg_y, color="#ff6600")
         self.anim = FuncAnimation(self.ecg_canvas.figure, self.update_ecg, interval=50, blit=True)
     def update_ecg(self, frame):
+        import os, json
+        lead_ii_file = 'lead_ii_live.json'
+        if os.path.exists(lead_ii_file):
+            try:
+                with open(lead_ii_file, 'r') as f:
+                    data = json.load(f)
+                if isinstance(data, list) and len(data) > 10:
+                    arr = np.array(data)
+                    arr = arr - np.mean(arr)
+                    arr = arr + 1000  # Center vertically
+                    if len(arr) < len(self.ecg_x):
+                        arr = np.pad(arr, (len(self.ecg_x)-len(arr), 0), 'constant', constant_values=(1000,))
+                    self.ecg_line.set_ydata(arr[-len(self.ecg_x):])
+                    return [self.ecg_line]
+            except Exception as e:
+                print("Error reading lead_ii_live.json:", e)
+        # Fallback: mock wave
         self.ecg_y = np.roll(self.ecg_y, -1)
         self.ecg_y[-1] = 1000 + 200 * np.sin(2 * np.pi * 2 * self.ecg_x[-1] + frame/10) + 50 * np.random.randn()
         self.ecg_line.set_ydata(self.ecg_y)
@@ -362,3 +382,8 @@ class Dashboard(QWidget):
             self.setStyleSheet("")
             self.medical_btn.setText("Medical Mode")
             self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
+    def center_on_screen(self):
+        qr = self.frameGeometry()
+        cp = QApplication.desktop().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())

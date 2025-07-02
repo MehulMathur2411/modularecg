@@ -64,6 +64,7 @@ class Dashboard(QWidget):
         super().__init__()
         self.username = username
         self.role = role
+        self.medical_mode = False
         self.setWindowTitle("ECG Monitor Dashboard")
         self.setGeometry(100, 100, 1300, 900)
         # --- Plasma GIF background ---
@@ -82,15 +83,30 @@ class Dashboard(QWidget):
         logo.setFont(QFont("Arial", 20, QFont.Bold))
         logo.setStyleSheet("color: #ff6600;")
         header.addWidget(logo)
+        # --- Internet Status Dot ---
+        self.status_dot = QLabel()
+        self.status_dot.setFixedSize(18, 18)
+        self.status_dot.setStyleSheet("border-radius: 9px; background: gray; border: 2px solid #fff;")
+        header.addWidget(self.status_dot)
+        self.update_internet_status()
+        self.status_timer = QTimer(self)
+        self.status_timer.timeout.connect(self.update_internet_status)
+        self.status_timer.start(3000)  # check every 3 seconds
+        # --- Medical Mode Toggle ---
+        self.medical_btn = QPushButton("Medical Mode")
+        self.medical_btn.setCheckable(True)
+        self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
+        self.medical_btn.clicked.connect(self.toggle_medical_mode)
+        header.addWidget(self.medical_btn)
         header.addStretch()
-        user_label = QLabel(f"{self.username or 'User'}\n{self.role or ''}")
-        user_label.setFont(QFont("Arial", 10))
-        user_label.setAlignment(Qt.AlignRight)
-        header.addWidget(user_label)
-        signout_btn = QPushButton("Sign Out")
-        signout_btn.setStyleSheet("background: #e74c3c; color: white; border-radius: 10px; padding: 4px 18px;")
-        signout_btn.clicked.connect(self.handle_sign_out)
-        header.addWidget(signout_btn)
+        self.user_label = QLabel(f"{self.username or 'User'}\n{self.role or ''}")
+        self.user_label.setFont(QFont("Arial", 10))
+        self.user_label.setAlignment(Qt.AlignRight)
+        header.addWidget(self.user_label)
+        self.sign_btn = QPushButton("Sign Out")
+        self.sign_btn.setStyleSheet("background: #e74c3c; color: white; border-radius: 10px; padding: 4px 18px;")
+        self.sign_btn.clicked.connect(self.handle_sign_out)
+        header.addWidget(self.sign_btn)
         main_layout.addLayout(header)
         # --- Greeting and Date Row ---
         greet_row = QHBoxLayout()
@@ -321,3 +337,23 @@ class Dashboard(QWidget):
     def go_to_lead_test(self):
         # Simulate redirect to ECG 12-lead test page
         QMessageBox.information(self, "ECG Lead Test 12", "Redirected to ECG Lead Test 12 page! (Demo)")
+    def update_internet_status(self):
+        import socket
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            self.status_dot.setStyleSheet("border-radius: 9px; background: #00e676; border: 2px solid #fff;")
+            self.status_dot.setToolTip("Connected to Internet")
+        except Exception:
+            self.status_dot.setStyleSheet("border-radius: 9px; background: #e74c3c; border: 2px solid #fff;")
+            self.status_dot.setToolTip("No Internet Connection")
+    def toggle_medical_mode(self):
+        self.medical_mode = not self.medical_mode
+        if self.medical_mode:
+            # Medical color coding: blue/green/white
+            self.setStyleSheet("QWidget { background: #e3f6fd; } QFrame { background: #f8fdff; border-radius: 16px; } QLabel { color: #006266; }")
+            self.medical_btn.setText("Normal Mode")
+            self.medical_btn.setStyleSheet("background: #0984e3; color: white; border-radius: 10px; padding: 4px 18px;")
+        else:
+            self.setStyleSheet("")
+            self.medical_btn.setText("Medical Mode")
+            self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")

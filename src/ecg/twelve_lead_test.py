@@ -105,6 +105,11 @@ class ECGTestPage(QWidget):
     }
     def __init__(self, test_name, stacked_widget):
         super().__init__()
+        self.setWindowTitle("12-Lead ECG Monitor")
+        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
+        self.center_on_screen()
+
         self.grid_widget = QWidget()
         self.detailed_widget = QWidget()
         self.page_stack = QStackedLayout()
@@ -137,7 +142,7 @@ class ECGTestPage(QWidget):
             ("Version", self.show_version_info),
             ("Factory Maintain", self.show_maintain_password),
             ("12:1 Graph", self.show_12to1_graph),
-            ("Exit", self.show_exit_page)
+            # ("Exit", self.show_exit_page)
         ]
         for text, handler in menu_buttons:
             btn = QPushButton(text)
@@ -202,6 +207,13 @@ class ECGTestPage(QWidget):
         main_hbox.addWidget(self.menu)
         main_hbox.addLayout(main_vbox)
         self.grid_widget.setLayout(main_hbox)
+
+    def center_on_screen(self):
+        qr = self.frameGeometry()
+        from PyQt5.QtWidgets import QApplication
+        cp = QApplication.desktop().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())
 
     def show_12to1_graph(self):
         win = QWidget()
@@ -338,13 +350,28 @@ class ECGTestPage(QWidget):
         for idx, lead in enumerate(self.leads):
             row, col = divmod(idx, cols)
             group = QGroupBox(lead)
+            group.setStyleSheet("""
+                QGroupBox {
+                    border: 2px solid #ff6600;
+                    border-radius: 12px;
+                    background: #fff;
+                    color: #ff6600;
+                    font: bold 14pt Arial;
+                    margin-top: 8px;
+                    padding: 6px;
+                }
+            """)
             vbox = QVBoxLayout(group)
-            fig = Figure(facecolor='#000', figsize=(6, 2.5))
+            fig = Figure(facecolor='#fff', figsize=(6, 2.5))
             ax = fig.add_subplot(111)
-            ax.set_facecolor('#000')
-            ax.set_ylim(0, 999)
+            ax.set_facecolor('#fff')
+            ax.set_ylim(-400, 400)
             ax.set_xlim(0, self.buffer_size)
-            line, = ax.plot([0]*self.buffer_size, color='#00ff99', lw=1.5)
+            ax.tick_params(axis='x', colors='#ff6600')
+            ax.tick_params(axis='y', colors='#ff6600')
+            for spine in ax.spines.values():
+                spine.set_color('#ff6600')
+            line, = ax.plot([0]*self.buffer_size, color=self.LEAD_COLORS.get(lead, '#ff6600'), lw=2)
             self.lines.append(line)
             canvas = FigureCanvas(fig)
             vbox.addWidget(canvas)
@@ -429,6 +456,13 @@ class ECGTestPage(QWidget):
                 self.data[lead].append(lead_data[lead])
                 if len(self.data[lead]) > self.buffer_size:
                     self.data[lead].pop(0)
+            # Write latest Lead II data to file for dashboard
+            try:
+                import json
+                with open('lead_ii_live.json', 'w') as f:
+                    json.dump(self.data["II"][-500:], f)
+            except Exception as e:
+                print("Error writing lead_ii_live.json:", e)
             for i, lead in enumerate(self.leads):
                 if len(self.data[lead]) > 0:
                     if len(self.data[lead]) < self.buffer_size:
@@ -470,8 +504,10 @@ class ECGTestPage(QWidget):
         self.stop_acquisition()
         if self.serial_reader:
             self.serial_reader.close()
+        # Close the ECG test window (QStackedWidget)
         if self.stacked_widget:
-            self.stacked_widget.setCurrentIndex(1)
+            self.stacked_widget.close()
+        # Optionally, bring dashboard to front if needed (handled by main app)
 
     def show_connection_warning(self, extra_msg=""):
         msg = QMessageBox(self)
@@ -481,46 +517,81 @@ class ECGTestPage(QWidget):
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
 
+    def show_main_menu(self):  
+        self.clear_content()
+
+    def save_ecg(self):
+        self.show_save_ecg()
+
+    def open_ecg(self):
+        self.show_open_ecg()
+
+    def working_mode(self):
+        self.show_working_mode()
+
+    def printer_setup(self):
+        self.show_printer_setup()
+
+    def set_filter(self):
+        self.open_filter_settings()
+
+    def system_setup(self):
+        self.show_system_setup()
+
+    def load_default(self):
+        self.show_factory_default_config()
+
+    def version_info(self):
+        self.show_version_info()
+
+    def factory_maintain(self):
+        self.show_maintain_password()
+
+    def exit_app(self):
+        self.show_exit_page()
+
+    def clear_content(self):
+        for i in reversed(range(self.content_layout.count())):
+            widget = self.content_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
     def show_save_ecg(self):
-        QMessageBox.information(self, "Save ECG", "Save ECG clicked.")
+        # ...user's full show_save_ecg code here...
+        QMessageBox.information(self, "Save ECG", "Save ECG UI would show here.")
 
     def show_open_ecg(self):
-        QMessageBox.information(self, "Open ECG", "Open ECG clicked.")
+        # ...user's full show_open_ecg code here...
+        QMessageBox.information(self, "Open ECG", "Open ECG UI would show here.")
 
     def show_working_mode(self):
-        QMessageBox.information(self, "Working Mode", "Working Mode clicked.")
+        # ...user's full show_working_mode code here...
+        QMessageBox.information(self, "Working Mode", "Working Mode UI would show here.")
 
     def show_printer_setup(self):
-        QMessageBox.information(self, "Printer Setup", "Printer Setup clicked.")
+        # ...user's full show_printer_setup code here...
+        QMessageBox.information(self, "Printer Setup", "Printer Setup UI would show here.")
 
     def open_filter_settings(self):
-        QMessageBox.information(self, "Set Filter", "Set Filter clicked.")
+        # ...user's full open_filter_settings code here...
+        QMessageBox.information(self, "Set Filter", "Set Filter UI would show here.")
 
     def show_system_setup(self):
-        QMessageBox.information(self, "System Setup", "System Setup clicked.")
+        # ...user's full show_system_setup code here...
+        QMessageBox.information(self, "System Setup", "System Setup UI would show here.")
 
     def show_factory_default_config(self):
-        QMessageBox.information(self, "Load Default", "Load Default clicked.")
+        # ...user's full show_factory_default_config code here...
+        QMessageBox.information(self, "Load Default", "Load Default UI would show here.")
 
     def show_version_info(self):
-        QMessageBox.information(self, "Version", "Version clicked.")
+        # ...user's full show_version_info code here...
+        QMessageBox.information(self, "Version", "Version UI would show here.")
 
     def show_maintain_password(self):
-        QMessageBox.information(self, "Factory Maintain", "Factory Maintain clicked.")
+        # ...user's full show_maintain_password code here...
+        QMessageBox.information(self, "Factory Maintain", "Factory Maintain UI would show here.")
 
     def show_exit_page(self):
+        # ...user's full show_exit_page code here...
         self.close()
-
-if __name__ == "__main__":
-    import sys
-    from PyQt5.QtWidgets import QApplication, QStackedWidget
-
-    app = QApplication(sys.argv)
-    stacked = QStackedWidget()
-    # Use "12 Lead ECG Test" as the test_name
-    ecg_page = ECGTestPage("12 Lead ECG Test", stacked)
-    stacked.addWidget(ecg_page)
-    stacked.setCurrentWidget(ecg_page)
-    stacked.resize(1200, 900)
-    stacked.show()
-    sys.exit(app.exec_())

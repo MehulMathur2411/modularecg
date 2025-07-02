@@ -32,7 +32,7 @@ class LoginRegisterDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ECG Monitor - Sign In / Sign Up")
-        self.setFixedSize(400, 420)
+        self.setFixedSize(500, 420)
         self.setStyleSheet("""
             QDialog { background: #fff; border-radius: 18px; }
             QLabel { font-size: 15px; color: #222; }
@@ -45,14 +45,29 @@ class LoginRegisterDialog(QDialog):
         self.result = False
         self.username = None
         self.user_details = {}
+        # Center the dialog
+        self.center_on_screen()
+
+    def center_on_screen(self):
+        qr = self.frameGeometry()
+        cp = QApplication.desktop().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())
 
     def init_ui(self):
+        main_layout = QHBoxLayout()
+        # Left: Blank image
+        left_img = QLabel()
+        left_img.setFixedSize(120, 320)
+        left_img.setStyleSheet("background: #f0f0f0; border-radius: 12px;")
+        main_layout.addWidget(left_img)
+        # Right: Login/Register stack
+        right_layout = QVBoxLayout()
         self.stacked = QStackedWidget(self)
         self.login_widget = self.create_login_widget()
         self.register_widget = self.create_register_widget()
         self.stacked.addWidget(self.login_widget)
         self.stacked.addWidget(self.register_widget)
-
         btn_layout = QHBoxLayout()
         self.login_tab = QPushButton("Sign In")
         self.signup_tab = QPushButton("Sign Up")
@@ -60,14 +75,13 @@ class LoginRegisterDialog(QDialog):
         self.signup_tab.clicked.connect(lambda: self.stacked.setCurrentIndex(1))
         btn_layout.addWidget(self.login_tab)
         btn_layout.addWidget(self.signup_tab)
-
-        main_layout = QVBoxLayout()
         title = QLabel("ECG Monitor")
         title.setFont(QFont("Arial", 20, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title)
-        main_layout.addLayout(btn_layout)
-        main_layout.addWidget(self.stacked)
+        right_layout.addWidget(title)
+        right_layout.addLayout(btn_layout)
+        right_layout.addWidget(self.stacked)
+        main_layout.addLayout(right_layout)
         self.setLayout(main_layout)
 
     def create_login_widget(self):

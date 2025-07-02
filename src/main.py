@@ -2,7 +2,7 @@ import sys
 import os
 import json
 from PyQt5.QtWidgets import (
-    QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QStackedWidget, QWidget, QInputDialog
+    QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QStackedWidget, QWidget, QInputDialog, QSizePolicy
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -32,7 +32,9 @@ class LoginRegisterDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ECG Monitor - Sign In / Sign Up")
-        self.setFixedSize(500, 420)
+        # Remove fixed size for responsiveness
+        # self.setFixedSize(500, 420)
+        self.setMinimumSize(420, 340)
         self.setStyleSheet("""
             QDialog { background: #fff; border-radius: 18px; }
             QLabel { font-size: 15px; color: #222; }
@@ -58,9 +60,10 @@ class LoginRegisterDialog(QDialog):
         main_layout = QHBoxLayout()
         # Left: Blank image
         left_img = QLabel()
-        left_img.setFixedSize(120, 320)
+        left_img.setMinimumSize(100, 200)
+        left_img.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_img.setStyleSheet("background: #f0f0f0; border-radius: 12px;")
-        main_layout.addWidget(left_img)
+        main_layout.addWidget(left_img, 1)
         # Right: Login/Register stack
         right_layout = QVBoxLayout()
         self.stacked = QStackedWidget(self)
@@ -71,6 +74,8 @@ class LoginRegisterDialog(QDialog):
         btn_layout = QHBoxLayout()
         self.login_tab = QPushButton("Sign In")
         self.signup_tab = QPushButton("Sign Up")
+        self.login_tab.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.signup_tab.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.login_tab.clicked.connect(lambda: self.stacked.setCurrentIndex(0))
         self.signup_tab.clicked.connect(lambda: self.stacked.setCurrentIndex(1))
         btn_layout.addWidget(self.login_tab)
@@ -78,10 +83,12 @@ class LoginRegisterDialog(QDialog):
         title = QLabel("ECG Monitor")
         title.setFont(QFont("Arial", 20, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
+        title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         right_layout.addWidget(title)
         right_layout.addLayout(btn_layout)
-        right_layout.addWidget(self.stacked)
-        main_layout.addLayout(right_layout)
+        right_layout.addWidget(self.stacked, 1)
+        right_layout.addStretch(1)
+        main_layout.addLayout(right_layout, 2)
         self.setLayout(main_layout)
 
     def create_login_widget(self):
@@ -96,10 +103,13 @@ class LoginRegisterDialog(QDialog):
         login_btn.clicked.connect(self.handle_login)
         phone_btn = QPushButton("Login with Phone Number")
         phone_btn.clicked.connect(self.handle_phone_login)
+        for w in [self.login_email, self.login_password, login_btn, phone_btn]:
+            w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(self.login_email)
         layout.addWidget(self.login_password)
         layout.addWidget(login_btn)
         layout.addWidget(phone_btn)
+        layout.addStretch(1)
         widget.setLayout(layout)
         return widget
 
@@ -124,6 +134,8 @@ class LoginRegisterDialog(QDialog):
         self.reg_contact.setPlaceholderText("Contact Number")
         register_btn = QPushButton("Sign Up")
         register_btn.clicked.connect(self.handle_register)
+        for w in [self.reg_email, self.reg_password, self.reg_confirm, self.reg_fullname, self.reg_age, self.reg_gender, self.reg_contact, register_btn]:
+            w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(self.reg_email)
         layout.addWidget(self.reg_password)
         layout.addWidget(self.reg_confirm)
@@ -132,6 +144,7 @@ class LoginRegisterDialog(QDialog):
         layout.addWidget(self.reg_gender)
         layout.addWidget(self.reg_contact)
         layout.addWidget(register_btn)
+        layout.addStretch(1)
         widget.setLayout(layout)
         return widget
 

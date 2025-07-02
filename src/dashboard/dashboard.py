@@ -65,6 +65,7 @@ class Dashboard(QWidget):
         self.username = username
         self.role = role
         self.medical_mode = False
+        self.dark_mode = False
         self.setWindowTitle("ECG Monitor Dashboard")
         self.setGeometry(100, 100, 1300, 900)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
@@ -101,6 +102,12 @@ class Dashboard(QWidget):
         self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
         self.medical_btn.clicked.connect(self.toggle_medical_mode)
         header.addWidget(self.medical_btn)
+        # --- Dark Mode Toggle ---
+        self.dark_btn = QPushButton("Dark Mode")
+        self.dark_btn.setCheckable(True)
+        self.dark_btn.setStyleSheet("background: #222; color: #fff; border-radius: 10px; padding: 4px 18px;")
+        self.dark_btn.clicked.connect(self.toggle_dark_mode)
+        header.addWidget(self.dark_btn)
         header.addStretch()
         self.user_label = QLabel(f"{self.username or 'User'}\n{self.role or ''}")
         self.user_label.setFont(QFont("Arial", 10))
@@ -382,6 +389,53 @@ class Dashboard(QWidget):
             self.setStyleSheet("")
             self.medical_btn.setText("Medical Mode")
             self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
+    def toggle_dark_mode(self):
+        self.dark_mode = not self.dark_mode
+        if self.dark_mode:
+            self.setStyleSheet("""
+                QWidget { background: #181818; color: #fff; }
+                QFrame { background: #232323 !important; border-radius: 16px; color: #fff; border: 2px solid #fff; }
+                QLabel { color: #fff; }
+                QPushButton { background: #333; color: #ff6600; border-radius: 10px; }
+                QPushButton:checked { background: #ff6600; color: #fff; }
+                QCalendarWidget QWidget { background: #232323; color: #fff; }
+                QCalendarWidget QAbstractItemView { background: #232323; color: #fff; selection-background-color: #444; selection-color: #ff6600; }
+                QTextEdit { background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff; }
+            """)
+            self.dark_btn.setText("Light Mode")
+            # Set matplotlib canvas backgrounds to dark
+            self.ecg_canvas.axes.set_facecolor("#232323")
+            self.ecg_canvas.figure.set_facecolor("#232323")
+            for child in self.findChildren(QFrame):
+                child.setStyleSheet("background: #232323; border-radius: 16px; color: #fff; border: 2px solid #fff;")
+                for canvas in child.findChildren(MplCanvas):
+                    canvas.axes.set_facecolor("#232323")
+                    canvas.figure.set_facecolor("#232323")
+                    canvas.draw()
+                for cal in child.findChildren(QCalendarWidget):
+                    cal.setStyleSheet("background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff;")
+                for txt in child.findChildren(QTextEdit):
+                    txt.setStyleSheet("background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff;")
+            # Remove all margins and spacing for a seamless dark look
+            self.layout().setContentsMargins(0, 0, 0, 0)
+            self.layout().setSpacing(10)
+        else:
+            self.setStyleSheet("")
+            self.dark_btn.setText("Dark Mode")
+            self.ecg_canvas.axes.set_facecolor("#eee")
+            self.ecg_canvas.figure.set_facecolor("#fff")
+            for child in self.findChildren(QFrame):
+                child.setStyleSheet("")
+                for canvas in child.findChildren(MplCanvas):
+                    canvas.axes.set_facecolor("#fff")
+                    canvas.figure.set_facecolor("#fff")
+                    canvas.draw()
+                for cal in child.findChildren(QCalendarWidget):
+                    cal.setStyleSheet("")
+                for txt in child.findChildren(QTextEdit):
+                    txt.setStyleSheet("")
+            self.layout().setContentsMargins(20, 20, 20, 20)
+            self.layout().setSpacing(20)
     def center_on_screen(self):
         qr = self.frameGeometry()
         cp = QApplication.desktop().availableGeometry().center()

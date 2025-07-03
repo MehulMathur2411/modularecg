@@ -1,7 +1,7 @@
 import os
 import json
 from PyQt5.QtWidgets import (
-    QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QStackedWidget, QWidget
+    QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QStackedWidget, QWidget, QSizePolicy
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -146,12 +146,30 @@ class LoginRegisterDialog(QDialog):
         self.reg_confirm = QLineEdit()
         self.reg_confirm.setPlaceholderText("Confirm Password")
         self.reg_confirm.setEchoMode(QLineEdit.Password)
+        self.reg_fullname = QLineEdit()
+        self.reg_fullname.setPlaceholderText("Full Name")
+        self.reg_age = QLineEdit()
+        self.reg_age.setPlaceholderText("Age")
+        self.reg_gender = QLineEdit()
+        self.reg_gender.setPlaceholderText("Gender")
+        self.reg_contact = QLineEdit()
+        self.reg_contact.setPlaceholderText("Contact Number")
+        self.reg_email = QLineEdit()
+        self.reg_email.setPlaceholderText("Email Address")
         register_btn = QPushButton("Sign Up")
         register_btn.clicked.connect(self.handle_register)
+        for w in [self.reg_username, self.reg_password, self.reg_confirm, self.reg_fullname, self.reg_age, self.reg_gender, self.reg_contact, self.reg_email, register_btn]:
+            w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(self.reg_username)
         layout.addWidget(self.reg_password)
         layout.addWidget(self.reg_confirm)
+        layout.addWidget(self.reg_fullname)
+        layout.addWidget(self.reg_age)
+        layout.addWidget(self.reg_gender)
+        layout.addWidget(self.reg_contact)
+        layout.addWidget(self.reg_email)
         layout.addWidget(register_btn)
+        layout.addStretch(1)
         widget.setLayout(layout)
         return widget
 
@@ -169,11 +187,19 @@ class LoginRegisterDialog(QDialog):
         username = self.reg_username.text()
         password = self.reg_password.text()
         confirm = self.reg_confirm.text()
+        fullname = self.reg_fullname.text()
+        age = self.reg_age.text()
+        gender = self.reg_gender.text()
+        contact = self.reg_contact.text()
+        email = self.reg_email.text()
         if not username or not password:
             QMessageBox.warning(self, "Error", "Username and password required.")
             return
         if password != confirm:
             QMessageBox.warning(self, "Error", "Passwords do not match.")
+            return
+        if not fullname or not age or not gender or not contact or not email:
+            QMessageBox.warning(self, "Error", "All details required.")
             return
         if not self.sign_in_logic.register_user(username, password):
             QMessageBox.warning(self, "Error", "Username already exists.")

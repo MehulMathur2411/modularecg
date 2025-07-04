@@ -29,7 +29,7 @@ class LeadSequentialView(QWidget):
         self.ax.tick_params(axis='x', colors='#00ff00')
         self.ax.tick_params(axis='y', colors='#00ff00')
         for spine in self.ax.spines.values():
-            spine.set_color('#00ff00')
+            spine.set_visible(False)
         self.line, = self.ax.plot([], [], color="#00ff00", lw=2)
         # --- Mini-graphs for all 12 leads ---
         self.mini_figs = []
@@ -44,7 +44,7 @@ class LeadSequentialView(QWidget):
             mini_ax.tick_params(axis='x', colors='#00ff00', labelsize=6)
             mini_ax.tick_params(axis='y', colors='#00ff00', labelsize=6)
             for spine in mini_ax.spines.values():
-                spine.set_color('#00ff00')
+                spine.set_visible(False)
             mini_ax.set_xticks([])
             mini_ax.set_yticks([])
             mini_ax.set_title(l, color='#ff6600', fontsize=8)
@@ -133,7 +133,7 @@ class LeadSequentialView(QWidget):
             ax.tick_params(axis='x', colors='#00ff00')
             ax.tick_params(axis='y', colors='#00ff00')
             for spine in ax.spines.values():
-                spine.set_color('#00ff00')
+                spine.set_visible(False)
             ax.set_ylabel(lead, color='#00ff00', fontsize=12, labelpad=10)
             ax.set_xticks([])
             ax.set_yticks([])
@@ -145,6 +145,7 @@ class LeadSequentialView(QWidget):
         canvas = FigureCanvas(fig)
         layout.addWidget(canvas)
         win.setLayout(layout)
+        
         def update_overlay():
             for idx, lead in enumerate(leads):
                 d = data.get(lead, [])
@@ -154,8 +155,17 @@ class LeadSequentialView(QWidget):
                 if d:
                     n = min(len(d), buffer_size)
                     centered = np.array(d[-n:]) - np.mean(d[-n:])
-                    # Place the data at the right edge, pad the left if needed (match main grid)
-                    plot_data[-n:] = centered
+                    if n < buffer_size:
+                        # Stretch data to fill the box from right to left
+                        stretched = np.interp(
+                            np.linspace(0, n-1, buffer_size),
+                            np.arange(n),
+                            centered
+                        )
+                        plot_data[:] = stretched
+                    else:
+                        # Right-align the data (latest at the right)
+                        plot_data[-n:] = centered
                     ymin = np.min(centered) - 100
                     ymax = np.max(centered) + 100
                     if ymin == ymax:

@@ -1,8 +1,40 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QDialog
 from PyQt5.QtCore import Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
+
+class LorenzDialog(QDialog):
+    def __init__(self, lead_name, data, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Lorenz (Poincaré) Plot - {lead_name}")
+        self.setStyleSheet("background: #000;")
+        self.resize(400, 400)
+        layout = QVBoxLayout(self)
+        fig = Figure(figsize=(4, 4), facecolor='#000')
+        ax = fig.add_subplot(111)
+        ax.set_facecolor('#000')
+        ax.tick_params(axis='x', colors='#ff6600')
+        ax.tick_params(axis='y', colors='#ff6600')
+        for spine in ax.spines.values():
+            spine.set_color('#ff6600')
+        ax.set_title("Lorenz Plot", color='#ff6600')
+        ax.set_xlabel("x[n]", color='#ff6600')
+        ax.set_ylabel("x[n+1]", color='#ff6600')
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas)
+        # Compute Lorenz points
+        d = np.array(data)
+        if len(d) > 1:
+            d = d - np.mean(d)
+            x = d[:-1]
+            y = d[1:]
+            ax.scatter(x, y, s=6, c="#00ff00", alpha=0.7)
+            ax.set_xlim(np.min(x)-50, np.max(x)+50)
+            ax.set_ylim(np.min(y)-50, np.max(y)+50)
+        else:
+            ax.text(0.5, 0.5, "Not enough data", color="#ff6600", ha="center", va="center")
+        canvas.draw()
 
 class LeadSequentialView(QWidget):
     def __init__(self, leads, data, buffer_size=500, parent=None):
@@ -37,7 +69,7 @@ class LeadSequentialView(QWidget):
         self.mini_lines = []
         self.mini_canvases = []
         mini_layout = QHBoxLayout()
-        for l in self.leads:
+        for i, l in enumerate(self.leads):
             mini_fig = Figure(figsize=(1.2, 1), facecolor='#000')
             mini_ax = mini_fig.add_subplot(111)
             mini_ax.set_facecolor('#000')
@@ -51,6 +83,15 @@ class LeadSequentialView(QWidget):
             mini_line, = mini_ax.plot([], [], color="#00ff00", lw=1)
             mini_canvas = FigureCanvas(mini_fig)
             mini_canvas.setFixedSize(80, 50)
+            # --- Make mini-graph clickable ---
+            def make_onclick(idx):
+                def onclick(event):
+                    lead_name = self.leads[idx]
+                    d = self.data.get(lead_name, [])
+                    dlg = LorenzDialog(lead_name, d, self)
+                    dlg.exec_()
+                return onclick
+            mini_canvas.mpl_connect('button_press_event', make_onclick(i))
             mini_layout.addWidget(mini_canvas)
             self.mini_figs.append(mini_fig)
             self.mini_axes.append(mini_ax)

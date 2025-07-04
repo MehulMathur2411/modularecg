@@ -31,7 +31,7 @@ def save_users(users):
 class LoginRegisterDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Pulse Monitor - Sign In / Sign Up")
+        self.setWindowTitle("CardioX by Deckmount - Sign In / Sign Up")
         self.setMinimumSize(800, 500)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint)
         self.setStyleSheet("""
@@ -75,7 +75,33 @@ class LoginRegisterDialog(QDialog):
             self.bg_label.setMovie(movie)
             movie.start()
         self.bg_label.setScaledContents(True)
-        # Glass effect container in center
+        # --- Title and tagline above glass ---
+        main_layout = QVBoxLayout(self)
+        main_layout.addStretch(1)
+        # Title (outside glass) - logo style
+        title = QLabel("CardioX by Deckmount")
+        title.setFont(QFont("Segoe Script, Pacifico, Segoe UI", 52, QFont.Black))
+        title.setStyleSheet("""
+            color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff6600, stop:1 #ffb347);
+            letter-spacing: 4px;
+            margin-bottom: 0px;
+            padding-top: 0px;
+            padding-bottom: 0px;
+            text-shadow: 0 4px 24px #ff660088, 0 1px 0 #fff, 0 0px 2px #ff6600;
+            font-weight: 900;
+            border-radius: 18px;
+        """)
+        title.setAlignment(Qt.AlignHCenter)
+        main_layout.addWidget(title)
+        # Tagline (outside glass)
+        tagline = QLabel("Built to Detect. Designed to Last.")
+        tagline.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        tagline.setStyleSheet("color: #ff6600; margin-bottom: 18px; margin-top: 0px; text-shadow: 0 2px 12px #fff2;")
+        tagline.setAlignment(Qt.AlignHCenter)
+        main_layout.addWidget(tagline)
+        # --- Glass effect container in center ---
+        row = QHBoxLayout()
+        row.addStretch(1)
         glass = QWidget(self)
         glass.setObjectName("Glass")
         glass.setStyleSheet("""
@@ -85,37 +111,34 @@ class LoginRegisterDialog(QDialog):
                 border: 2px solid rgba(255,255,255,0.35);
             }
         """)
-        glass.setMinimumSize(520, 480)
+        glass.setMinimumSize(600, 520)
         # Create stacked widget and login/register widgets BEFORE using stacked_col
         self.stacked = QStackedWidget(glass)
         self.login_widget = self.create_login_widget()
         self.register_widget = self.create_register_widget()
         self.stacked.addWidget(self.login_widget)
         self.stacked.addWidget(self.register_widget)
-        # Now build glass layout
         glass_layout = QHBoxLayout(glass)
         glass_layout.setContentsMargins(32, 32, 32, 32)
-        # ECG image inside glass, left side
+        # ECG image inside glass, left side (larger)
         ecg_img = QLabel()
-        from PyQt5.QtGui import QPixmap
         ecg_pix = QPixmap(os.path.abspath(os.path.join(os.path.dirname(__file__), '../assets/v1.png')))
         if not ecg_pix.isNull():
-            ecg_img.setPixmap(ecg_pix.scaled(320, 480, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            ecg_img.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
-            ecg_img.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
-            ecg_img.setStyleSheet("margin-right: 32px; margin-left: 0px; border-radius: 24px; box-shadow: 0 0 32px #ff6600; background: transparent;")
-        glass_layout.addWidget(ecg_img, 2)
+            ecg_img.setPixmap(ecg_pix.scaled(400, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            ecg_img.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
+            ecg_img.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            ecg_img.setStyleSheet("margin: 0px 32px 0px 0px; border-radius: 24px; box-shadow: 0 0 32px #ff6600; background: transparent;")
+        # Wrap image in a layout to center vertically
+        img_col = QVBoxLayout()
+        img_col.addStretch(1)
+        img_col.addWidget(ecg_img, alignment=Qt.AlignHCenter)
+        img_col.addStretch(1)
+        glass_layout.addLayout(img_col, 2)
         # Login/Register stacked widget (vertical)
         stacked_col = QVBoxLayout()
-        # Instagram-style title
-        title = QLabel("Pulse Monitor")
-        title.setFont(QFont("Pacifico, Segoe Script, cursive", 34, QFont.Bold))
-        title.setStyleSheet("color: #ff6600; letter-spacing: 1px; margin-bottom: 12px; padding-top: 8px; padding-bottom: 8px;")
-        title.setAlignment(Qt.AlignHCenter)
-        stacked_col.addWidget(title)
-        stacked_col.addSpacing(8)
+        stacked_col.addStretch(1)
         stacked_col.addWidget(self.stacked, 2)
-        # Add sign up prompt below
+        # Add sign up/login prompt below
         signup_row = QHBoxLayout()
         signup_row.addStretch(1)
         signup_lbl = QLabel("Don't have an account?")
@@ -128,14 +151,23 @@ class LoginRegisterDialog(QDialog):
         signup_row.addStretch(1)
         stacked_col.addSpacing(10)
         stacked_col.addLayout(signup_row)
+        # Add login prompt to register widget
+        login_row = QHBoxLayout()
+        login_row.addStretch(1)
+        login_lbl = QLabel("Already have an account?")
+        login_lbl.setStyleSheet("color: #fff; font-size: 15px;")
+        login_btn = QPushButton("Login")
+        login_btn.setStyleSheet("color: #ff6600; background: transparent; border: none; font-size: 15px; font-weight: bold; text-decoration: underline;")
+        login_btn.clicked.connect(lambda: self.stacked.setCurrentIndex(0))
+        login_row.addWidget(login_lbl)
+        login_row.addWidget(login_btn)
+        login_row.addStretch(1)
+        # Insert login_row at the bottom of the register widget
+        self.register_widget.layout().addSpacing(10)
+        self.register_widget.layout().addLayout(login_row)
         stacked_col.addStretch(1)
         glass_layout.addLayout(stacked_col, 3)
         glass_layout.setSpacing(0)
-        # Center glass in dialog
-        main_layout = QVBoxLayout(self)
-        main_layout.addStretch(1)
-        row = QHBoxLayout()
-        row.addStretch(1)
         row.addWidget(glass, 1)
         row.addStretch(1)
         main_layout.addLayout(row)

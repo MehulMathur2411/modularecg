@@ -109,6 +109,7 @@ class ECGTestPage(QWidget):
         self.setGeometry(100, 100, 1200, 800)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
         self.center_on_screen()
+        self.stacked_widget = stacked_widget  # Save reference for navigation
 
         self.grid_widget = QWidget()
         self.detailed_widget = QWidget()
@@ -128,6 +129,13 @@ class ECGTestPage(QWidget):
         self.lines = []
         self.axs = []
         self.canvases = []
+
+        # Add Back button at the top
+        back_btn = QPushButton("Back")
+        back_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 10px; padding: 8px 24px; font-size: 16px; font-weight: bold;")
+        back_btn.clicked.connect(self.go_back)
+        main_vbox = QVBoxLayout()
+        main_vbox.addWidget(back_btn, alignment=Qt.AlignLeft)
 
         menu_frame = QGroupBox("Menu")
         menu_layout = QVBoxLayout(menu_frame)
@@ -151,7 +159,6 @@ class ECGTestPage(QWidget):
             menu_layout.addWidget(btn)
         menu_layout.addStretch(1)
 
-        main_vbox = QVBoxLayout()
         conn_layout = QHBoxLayout()
         self.port_combo = QComboBox()
         self.baud_combo = QComboBox()
@@ -175,12 +182,16 @@ class ECGTestPage(QWidget):
         self.export_csv_btn = QPushButton("Export as CSV")
         self.back_btn = QPushButton("Back")
         self.ecg_plot_btn = QPushButton("Open ECG Live Plot")
+        self.sequential_btn = QPushButton("Show All Leads Sequentially")
+        self.all_leads_btn = QPushButton("Show All Leads Overlay")
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
         btn_layout.addWidget(self.export_pdf_btn)
         btn_layout.addWidget(self.export_csv_btn)
         btn_layout.addWidget(self.back_btn)
         btn_layout.addWidget(self.ecg_plot_btn)
+        btn_layout.addWidget(self.sequential_btn)
+        btn_layout.addWidget(self.all_leads_btn)
         main_vbox.addLayout(btn_layout)
 
         self.start_btn.clicked.connect(self.start_acquisition)
@@ -188,6 +199,8 @@ class ECGTestPage(QWidget):
         self.export_pdf_btn.clicked.connect(self.export_pdf)
         self.export_csv_btn.clicked.connect(self.export_csv)
         self.back_btn.clicked.connect(self.go_back)
+        self.sequential_btn.clicked.connect(self.show_sequential_view)
+        self.all_leads_btn.clicked.connect(self.show_all_leads_overlay)
         # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
 
         # --- Add menu using ECGMenu ---
@@ -243,21 +256,22 @@ class ECGTestPage(QWidget):
         self._12to1_win = win
         self._12to1_timer = QTimer(self)
         self._12to1_timer.timeout.connect(self.update_12to1_graph)
-        if self.timer.isActive():
-            self._12to1_timer.start(100)
-    
+        self._12to1_timer.start(100)
+        def stop_timer():
+            self._12to1_timer.stop()
+        win.destroyed.connect(stop_timer)
+
     def update_12to1_graph(self):
         for lead, line in self._12to1_lines.items():
             data = self.data.get(lead, [])
             ax = self._12to1_axes[lead]
             if data:
-                if len(data) < self.buffer_size:
-                    plot_data = np.full(self.buffer_size, np.nan)
-                    plot_data[-len(data):] = data
-                else:
-                    plot_data = np.array(data[-self.buffer_size:])
-                centered = plot_data - np.nanmean(plot_data)
-                line.set_ydata(centered)
+                n = min(len(data), self.buffer_size)
+                plot_data = np.full(self.buffer_size, np.nan)
+                centered = np.array(data[-n:]) - np.mean(data[-n:])
+                plot_data[-n:] = centered
+                line.set_ydata(plot_data)
+                ax.set_ylim(-400, 400)
             else:
                 line.set_ydata([np.nan]*self.buffer_size)
             ax.figure.canvas.draw_idle()
@@ -501,13 +515,8 @@ class ECGTestPage(QWidget):
                     writer.writerow(row)
 
     def go_back(self):
-        self.stop_acquisition()
-        if self.serial_reader:
-            self.serial_reader.close()
-        # Close the ECG test window (QStackedWidget)
-        if self.stacked_widget:
-            self.stacked_widget.close()
-        # Optionally, bring dashboard to front if needed (handled by main app)
+        # Go back to dashboard (assumes dashboard is at index 0)
+        self.stacked_widget.setCurrentIndex(0)
 
     def show_connection_warning(self, extra_msg=""):
         msg = QMessageBox(self)
@@ -595,3 +604,13 @@ class ECGTestPage(QWidget):
     def show_exit_page(self):
         # ...user's full show_exit_page code here...
         self.close()
+
+    def show_sequential_view(self):
+        from ecg.lead_sequential_view import LeadSequentialView
+        win = LeadSequentialView(self.leads, self.data, buffer_size=500)
+        win.show()
+        self._sequential_win = win
+
+    def show_all_leads_overlay(self):
+        from ecg.lead_sequential_view import LeadSequentialView
+        self._all_leads_win = LeadSequentialView.show_all_leads(self.leads, self.data, buffer_size=500)

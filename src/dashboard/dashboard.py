@@ -10,7 +10,6 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.animation import FuncAnimation
 import math
-from ecg.twelve_lead_test import ECGTestPage
 import os
 import json
 
@@ -78,16 +77,19 @@ class Dashboard(QWidget):
         movie = QMovie("plasma.gif")
         self.bg_label.setMovie(movie)
         movie.start()
-        main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        # --- Central stacked widget for in-place navigation ---
+        self.page_stack = QStackedWidget(self)
+        # --- Dashboard main page widget ---
+        self.dashboard_page = QWidget()
+        dashboard_layout = QVBoxLayout(self.dashboard_page)
+        dashboard_layout.setSpacing(20)
+        dashboard_layout.setContentsMargins(20, 20, 20, 20)
         # --- Header ---
         header = QHBoxLayout()
         logo = QLabel("ECG Monitor")
         logo.setFont(QFont("Arial", 20, QFont.Bold))
         logo.setStyleSheet("color: #ff6600;")
         header.addWidget(logo)
-        # --- Internet Status Dot ---
         self.status_dot = QLabel()
         self.status_dot.setFixedSize(18, 18)
         self.status_dot.setStyleSheet("border-radius: 9px; background: gray; border: 2px solid #fff;")
@@ -95,14 +97,12 @@ class Dashboard(QWidget):
         self.update_internet_status()
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self.update_internet_status)
-        self.status_timer.start(3000)  # check every 3 seconds
-        # --- Medical Mode Toggle ---
+        self.status_timer.start(3000)
         self.medical_btn = QPushButton("Medical Mode")
         self.medical_btn.setCheckable(True)
         self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
         self.medical_btn.clicked.connect(self.toggle_medical_mode)
         header.addWidget(self.medical_btn)
-        # --- Dark Mode Toggle ---
         self.dark_btn = QPushButton("Dark Mode")
         self.dark_btn.setCheckable(True)
         self.dark_btn.setStyleSheet("background: #222; color: #fff; border-radius: 10px; padding: 4px 18px;")
@@ -117,7 +117,7 @@ class Dashboard(QWidget):
         self.sign_btn.setStyleSheet("background: #e74c3c; color: white; border-radius: 10px; padding: 4px 18px;")
         self.sign_btn.clicked.connect(self.handle_sign_out)
         header.addWidget(self.sign_btn)
-        main_layout.addLayout(header)
+        dashboard_layout.addLayout(header)
         # --- Greeting and Date Row ---
         greet_row = QHBoxLayout()
         from datetime import datetime
@@ -136,7 +136,7 @@ class Dashboard(QWidget):
         date_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 16px; padding: 8px 24px;")
         date_btn.clicked.connect(self.go_to_lead_test)
         greet_row.addWidget(date_btn)
-        main_layout.addLayout(greet_row)
+        dashboard_layout.addLayout(greet_row)
         # --- Main Grid ---
         grid = QGridLayout()
         grid.setSpacing(20)
@@ -309,12 +309,23 @@ class Dashboard(QWidget):
             box.addWidget(val)
             metrics_layout.addLayout(box)
         grid.addWidget(metrics_card, 0, 1, 1, 2)
-        main_layout.addLayout(grid)
+        dashboard_layout.addLayout(grid)
         # --- ECG Animation Setup ---
         self.ecg_x = np.linspace(0, 2, 500)
         self.ecg_y = 1000 + 200 * np.sin(2 * np.pi * 2 * self.ecg_x) + 50 * np.random.randn(500)
         self.ecg_line, = self.ecg_canvas.axes.plot(self.ecg_x, self.ecg_y, color="#ff6600")
         self.anim = FuncAnimation(self.ecg_canvas.figure, self.update_ecg, interval=50, blit=True)
+        # Add dashboard_page to stack
+        self.page_stack.addWidget(self.dashboard_page)
+        # --- ECG Test Page ---
+        from ecg.twelve_lead_test import ECGTestPage
+        self.ecg_test_page = ECGTestPage("12 Lead ECG Test", self.page_stack)
+        self.page_stack.addWidget(self.ecg_test_page)
+        # --- Main layout ---
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(self.page_stack)
+        self.setLayout(main_layout)
+        self.page_stack.setCurrentWidget(self.dashboard_page)
     def update_ecg(self, frame):
         import os, json
         lead_ii_file = 'lead_ii_live.json'
@@ -362,13 +373,9 @@ class Dashboard(QWidget):
         self.user_label.setText("Not signed in")
         self.sign_btn.setText("Sign In")
     def go_to_lead_test(self):
-        # Open the 12-lead ECG test window
-        self.lead_test_window = QStackedWidget()
-        self.ecg_test_page = ECGTestPage("12 Lead ECG Test", self.lead_test_window)
-        self.lead_test_window.addWidget(self.ecg_test_page)
-        self.lead_test_window.setCurrentWidget(self.ecg_test_page)
-        self.lead_test_window.resize(1200, 900)
-        self.lead_test_window.show()
+        self.page_stack.setCurrentWidget(self.ecg_test_page)
+    def go_to_dashboard(self):
+        self.page_stack.setCurrentWidget(self.dashboard_page)
     def update_internet_status(self):
         import socket
         try:

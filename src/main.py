@@ -84,7 +84,7 @@ class LoginRegisterDialog(QDialog):
         title.setStyleSheet("""
             color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff6600, stop:1 #ffb347);
             letter-spacing: 4px;
-            margin-bottom: 0px;
+            margin-bottom: 0px;        
             padding-top: 0px;
             padding-bottom: 0px;
             text-shadow: 0 4px 24px #ff660088, 0 1px 0 #fff, 0 0px 2px #ff6600;

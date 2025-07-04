@@ -183,7 +183,7 @@ class Dashboard(QWidget):
         grid.addWidget(analysis_card, 0, 1, 1, 2)
         # --- ECG Recording (Animated Chart) ---
         ecg_card = QFrame()
-        ecg_card.setStyleSheet("background: white; border-radius: 16px;")
+        ecg_card.setStyle
         ecg_layout = QVBoxLayout(ecg_card)
         ecg_label = QLabel("ECG Recording")
         ecg_label.setFont(QFont("Arial", 12, QFont.Bold))
@@ -292,14 +292,17 @@ class Dashboard(QWidget):
         metrics_card = QFrame()
         metrics_card.setStyleSheet("background: white; border-radius: 16px;")
         metrics_layout = QHBoxLayout(metrics_card)
-        for title, value, unit in [
-            ("Heart Rate", "76", "bpm"),
-            ("PR Interval", "160", "ms"),
-            ("QRS Duration", "90", "ms"),
-            ("QTc Interval", "410", "ms"),
-            ("QRS Axis", "+60", "°"),
-            ("ST Segment", "Normal", ""),
-        ]:
+        # Store metric labels for live update
+        self.metric_labels = {}
+        metric_info = [
+            ("Heart Rate", "76", "bpm", "heart_rate"),
+            ("PR Interval", "160", "ms", "pr_interval"),
+            ("QRS Duration", "90", "ms", "qrs_duration"),
+            ("QTc Interval", "410", "ms", "qtc_interval"),
+            ("QRS Axis", "+60", "°", "qrs_axis"),
+            ("ST Segment", "Normal", "", "st_segment"),
+        ]
+        for title, value, unit, key in metric_info:
             box = QVBoxLayout()
             lbl = QLabel(title)
             lbl.setFont(QFont("Arial", 10, QFont.Bold))
@@ -308,6 +311,7 @@ class Dashboard(QWidget):
             box.addWidget(lbl)
             box.addWidget(val)
             metrics_layout.addLayout(box)
+            self.metric_labels[key] = val  # Store reference for live update
         grid.addWidget(metrics_card, 0, 1, 1, 2)
         dashboard_layout.addLayout(grid)
         # --- ECG Animation Setup ---

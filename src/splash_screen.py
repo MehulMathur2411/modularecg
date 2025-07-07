@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QSplashScreen, QLabel
+from PyQt5.QtWidgets import QSplashScreen, QLabel, QDesktopWidget
 from PyQt5.QtGui import QPixmap, QFont, QMovie
 from PyQt5.QtCore import Qt
 import os
@@ -7,6 +7,11 @@ class SplashScreen(QSplashScreen):
     def __init__(self):
         super().__init__(QPixmap())
         self.setFixedSize(520, 400)
+        # Center the splash screen
+        qr = self.frameGeometry()
+        cp = QDesktopWidget().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())
         # Animated GIF
         self.label = QLabel(self)
         self.label.setGeometry(0, 0, 520, 320)

@@ -1,34 +1,40 @@
 # ECG Monitor Software
 
-This project is an ECG monitor software that provides a comprehensive solution for conducting 12-lead ECG tests, recording ECG data, and analyzing heartbeat statistics. The application features a user-friendly interface with a splash screen, user authentication, and a dashboard for displaying ECG data.
+A modern, modular ECG monitor app for 12-lead ECG tests, real-time recording, and advanced dashboard analytics. Features a beautiful, responsive UI/UX with dark mode, animated splash, and robust authentication.
 
 ## Features
 
-- **Splash Screen**: A visually appealing splash screen that appears during application startup.
-- **User Authentication**: Secure sign-in and sign-out functionality for users.
-- **ECG Recording**: Ability to start, stop, and save ECG recordings.
-- **12-Lead ECG Test**: Conduct and analyze a 12-lead ECG test.
-- **Dashboard**: A dashboard that displays saved lead waves, heartbeat data, and monthly ECG statistics.
+- **Animated Splash Screen**: Modern, centered, always-on-top splash with GIF animation.
+- **Authentication**: Modular sign in/sign up with two-column, Instagram-style dialog. Supports email and phone login.
+- **Dashboard**: Personalized greeting, heartbeat animation, ECG chart (shows real Lead II data if available), pie chart, calendar with last ECG date highlight, and medical/dark mode toggles.
+- **12-Lead ECG Test**: Standalone window for live 12-lead test, with menu actions (Save/Open/Export/Print/Back). Writes Lead II data for dashboard.
+- **Dark Mode**: All dashboard blocks/widgets adapt to dark mode with white borders and seamless black backgrounds.
+- **Medical Mode**: Blue/green/white color coding for clinical use.
+- **Responsive UI**: All dialogs and windows are centered and adapt to resizing. No fixed sizes; uses size policies and stretches.
+- **Robust Menu**: Modular ECGMenu for all test actions.
+- **Live Data Sharing**: Dashboard ECG chart auto-updates from test page via `lead_ii_live.json`.
 
 ## Project Structure
 
 ```
-ecg-monitor
-├── src
+EcgFR/
+├── src/
 │   ├── main.py
 │   ├── splash_screen.py
-│   ├── auth
+│   ├── auth/
 │   │   ├── sign_in.py
 │   │   └── sign_out.py
-│   ├── ecg
+│   ├── dashboard/
+│   │   └── dashboard.py
+│   ├── ecg/
 │   │   ├── recording.py
 │   │   └── twelve_lead_test.py
-│   ├── dashboard
-│   │   ├── saved_leads.py
-│   │   ├── heartbeat_data.py
-│   │   └── monthly_statistics.py
-│   └── utils
+│   └── utils/
 │       └── helpers.py
+├── assets/  # All images, GIFs, etc.
+├── users.json
+├── lead_ii_live.json
+├── last_ecg_date.json
 ├── requirements.txt
 └── README.md
 ```
@@ -36,26 +42,34 @@ ecg-monitor
 ## Installation
 
 1. Clone the repository:
-   ```
+   ```sh
    git clone <repository-url>
+   cd EcgFR
    ```
-2. Navigate to the project directory:
+2. (Recommended) Create a virtual environment:
+   ```sh
+   python -m venv .venv
+   .venv\Scripts\activate  # On Windows
    ```
-   cd ecg-monitor
-   ```
-3. Install the required dependencies:
-   ```
+3. Install dependencies:
+   ```sh
    pip install -r requirements.txt
    ```
 
 ## Usage
 
 1. Run the application:
-   ```
+   ```sh
    python src/main.py
    ```
-2. Follow the on-screen instructions to sign in or sign out.
-3. Use the dashboard to access ECG recording features and view statistics.
+2. Sign in or sign up. Use the dashboard to view live ECG, statistics, and run a 12-lead test.
+3. Use the dark mode/medical mode toggles for different UI themes.
+4. All data is stored locally in JSON files.
+
+## Notes
+- For best experience, use on Windows with all assets present in the `assets/` folder.
+- The dashboard ECG chart will show a mock wave if no real Lead II data is available.
+- Menu actions in the 12-lead test window are modular and can be extended.
 
 ## Contributing
 

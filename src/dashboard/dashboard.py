@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QGridLayout, QCalendarWidget, QTextEdit,
-    QDialog, QLineEdit, QComboBox, QFormLayout, QMessageBox, QSizePolicy
+    QDialog, QLineEdit, QComboBox, QFormLayout, QMessageBox, QSizePolicy, QStackedWidget
 )
 from PyQt5.QtGui import QFont, QPixmap, QMovie
 from PyQt5.QtCore import Qt, QTimer
@@ -10,7 +10,6 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.animation import FuncAnimation
 import math
-from ecg.twelve_lead_test import TwelveLeadTest
 import os
 import json
 
@@ -64,8 +63,13 @@ class Dashboard(QWidget):
         super().__init__()
         self.username = username
         self.role = role
+        self.medical_mode = False
+        self.dark_mode = False
         self.setWindowTitle("ECG Monitor Dashboard")
         self.setGeometry(100, 100, 1300, 900)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
+        self.setWindowState(Qt.WindowMaximized)
+        self.center_on_screen()
         # --- Plasma GIF background ---
         self.bg_label = QLabel(self)
         self.bg_label.setGeometry(0, 0, 1300, 900)
@@ -73,25 +77,47 @@ class Dashboard(QWidget):
         movie = QMovie("plasma.gif")
         self.bg_label.setMovie(movie)
         movie.start()
-        main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        # --- Central stacked widget for in-place navigation ---
+        self.page_stack = QStackedWidget(self)
+        # --- Dashboard main page widget ---
+        self.dashboard_page = QWidget()
+        dashboard_layout = QVBoxLayout(self.dashboard_page)
+        dashboard_layout.setSpacing(20)
+        dashboard_layout.setContentsMargins(20, 20, 20, 20)
         # --- Header ---
         header = QHBoxLayout()
         logo = QLabel("ECG Monitor")
         logo.setFont(QFont("Arial", 20, QFont.Bold))
         logo.setStyleSheet("color: #ff6600;")
         header.addWidget(logo)
+        self.status_dot = QLabel()
+        self.status_dot.setFixedSize(18, 18)
+        self.status_dot.setStyleSheet("border-radius: 9px; background: gray; border: 2px solid #fff;")
+        header.addWidget(self.status_dot)
+        self.update_internet_status()
+        self.status_timer = QTimer(self)
+        self.status_timer.timeout.connect(self.update_internet_status)
+        self.status_timer.start(3000)
+        self.medical_btn = QPushButton("Medical Mode")
+        self.medical_btn.setCheckable(True)
+        self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
+        self.medical_btn.clicked.connect(self.toggle_medical_mode)
+        header.addWidget(self.medical_btn)
+        self.dark_btn = QPushButton("Dark Mode")
+        self.dark_btn.setCheckable(True)
+        self.dark_btn.setStyleSheet("background: #222; color: #fff; border-radius: 10px; padding: 4px 18px;")
+        self.dark_btn.clicked.connect(self.toggle_dark_mode)
+        header.addWidget(self.dark_btn)
         header.addStretch()
-        user_label = QLabel(f"{self.username or 'User'}\n{self.role or ''}")
-        user_label.setFont(QFont("Arial", 10))
-        user_label.setAlignment(Qt.AlignRight)
-        header.addWidget(user_label)
-        signout_btn = QPushButton("Sign Out")
-        signout_btn.setStyleSheet("background: #e74c3c; color: white; border-radius: 10px; padding: 4px 18px;")
-        signout_btn.clicked.connect(self.handle_sign_out)
-        header.addWidget(signout_btn)
-        main_layout.addLayout(header)
+        self.user_label = QLabel(f"{self.username or 'User'}\n{self.role or ''}")
+        self.user_label.setFont(QFont("Arial", 10))
+        self.user_label.setAlignment(Qt.AlignRight)
+        header.addWidget(self.user_label)
+        self.sign_btn = QPushButton("Sign Out")
+        self.sign_btn.setStyleSheet("background: #e74c3c; color: white; border-radius: 10px; padding: 4px 18px;")
+        self.sign_btn.clicked.connect(self.handle_sign_out)
+        header.addWidget(self.sign_btn)
+        dashboard_layout.addLayout(header)
         # --- Greeting and Date Row ---
         greet_row = QHBoxLayout()
         from datetime import datetime
@@ -110,7 +136,7 @@ class Dashboard(QWidget):
         date_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 16px; padding: 8px 24px;")
         date_btn.clicked.connect(self.go_to_lead_test)
         greet_row.addWidget(date_btn)
-        main_layout.addLayout(greet_row)
+        dashboard_layout.addLayout(greet_row)
         # --- Main Grid ---
         grid = QGridLayout()
         grid.setSpacing(20)
@@ -121,7 +147,9 @@ class Dashboard(QWidget):
         heart_label = QLabel("Live Heart Rate Overview")
         heart_label.setFont(QFont("Arial", 14, QFont.Bold))
         heart_img = QLabel()
-        self.heart_pixmap = QPixmap(r"C:/Users/DELL/Desktop/EcgFR/assets/her.png")
+        # Use a portable path for the heart image asset
+        heart_img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "her.png")
+        self.heart_pixmap = QPixmap(heart_img_path)
         self.heart_base_size = 220
         heart_img.setFixedSize(self.heart_base_size + 20, self.heart_base_size + 20)
         heart_img.setAlignment(Qt.AlignCenter)
@@ -157,7 +185,7 @@ class Dashboard(QWidget):
         grid.addWidget(analysis_card, 0, 1, 1, 2)
         # --- ECG Recording (Animated Chart) ---
         ecg_card = QFrame()
-        ecg_card.setStyleSheet("background: white; border-radius: 16px;")
+        ecg_card.setStyle
         ecg_layout = QVBoxLayout(ecg_card)
         ecg_label = QLabel("ECG Recording")
         ecg_label.setFont(QFont("Arial", 12, QFont.Bold))
@@ -266,14 +294,17 @@ class Dashboard(QWidget):
         metrics_card = QFrame()
         metrics_card.setStyleSheet("background: white; border-radius: 16px;")
         metrics_layout = QHBoxLayout(metrics_card)
-        for title, value, unit in [
-            ("Heart Rate", "76", "bpm"),
-            ("PR Interval", "160", "ms"),
-            ("QRS Duration", "90", "ms"),
-            ("QTc Interval", "410", "ms"),
-            ("QRS Axis", "+60", "°"),
-            ("ST Segment", "Normal", ""),
-        ]:
+        # Store metric labels for live update
+        self.metric_labels = {}
+        metric_info = [
+            ("Heart Rate", "76", "bpm", "heart_rate"),
+            ("PR Interval", "160", "ms", "pr_interval"),
+            ("QRS Duration", "90", "ms", "qrs_duration"),
+            ("QTc Interval", "410", "ms", "qtc_interval"),
+            ("QRS Axis", "+60", "°", "qrs_axis"),
+            ("ST Segment", "Normal", "", "st_segment"),
+        ]
+        for title, value, unit, key in metric_info:
             box = QVBoxLayout()
             lbl = QLabel(title)
             lbl.setFont(QFont("Arial", 10, QFont.Bold))
@@ -282,14 +313,43 @@ class Dashboard(QWidget):
             box.addWidget(lbl)
             box.addWidget(val)
             metrics_layout.addLayout(box)
+            self.metric_labels[key] = val  # Store reference for live update
         grid.addWidget(metrics_card, 0, 1, 1, 2)
-        main_layout.addLayout(grid)
+        dashboard_layout.addLayout(grid)
         # --- ECG Animation Setup ---
         self.ecg_x = np.linspace(0, 2, 500)
         self.ecg_y = 1000 + 200 * np.sin(2 * np.pi * 2 * self.ecg_x) + 50 * np.random.randn(500)
         self.ecg_line, = self.ecg_canvas.axes.plot(self.ecg_x, self.ecg_y, color="#ff6600")
         self.anim = FuncAnimation(self.ecg_canvas.figure, self.update_ecg, interval=50, blit=True)
+        # Add dashboard_page to stack
+        self.page_stack.addWidget(self.dashboard_page)
+        # --- ECG Test Page ---
+        from ecg.twelve_lead_test import ECGTestPage
+        self.ecg_test_page = ECGTestPage("12 Lead ECG Test", self.page_stack)
+        self.page_stack.addWidget(self.ecg_test_page)
+        # --- Main layout ---
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(self.page_stack)
+        self.setLayout(main_layout)
+        self.page_stack.setCurrentWidget(self.dashboard_page)
     def update_ecg(self, frame):
+        import os, json
+        lead_ii_file = 'lead_ii_live.json'
+        if os.path.exists(lead_ii_file):
+            try:
+                with open(lead_ii_file, 'r') as f:
+                    data = json.load(f)
+                if isinstance(data, list) and len(data) > 10:
+                    arr = np.array(data)
+                    arr = arr - np.mean(arr)
+                    arr = arr + 1000  # Center vertically
+                    if len(arr) < len(self.ecg_x):
+                        arr = np.pad(arr, (len(self.ecg_x)-len(arr), 0), 'constant', constant_values=(1000,))
+                    self.ecg_line.set_ydata(arr[-len(self.ecg_x):])
+                    return [self.ecg_line]
+            except Exception as e:
+                print("Error reading lead_ii_live.json:", e)
+        # Fallback: mock wave
         self.ecg_y = np.roll(self.ecg_y, -1)
         self.ecg_y[-1] = 1000 + 200 * np.sin(2 * np.pi * 2 * self.ecg_x[-1] + frame/10) + 50 * np.random.randn()
         self.ecg_line.set_ydata(self.ecg_y)
@@ -319,5 +379,78 @@ class Dashboard(QWidget):
         self.user_label.setText("Not signed in")
         self.sign_btn.setText("Sign In")
     def go_to_lead_test(self):
-        # Simulate redirect to ECG 12-lead test page
-        QMessageBox.information(self, "ECG Lead Test 12", "Redirected to ECG Lead Test 12 page! (Demo)")
+        self.page_stack.setCurrentWidget(self.ecg_test_page)
+    def go_to_dashboard(self):
+        self.page_stack.setCurrentWidget(self.dashboard_page)
+    def update_internet_status(self):
+        import socket
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            self.status_dot.setStyleSheet("border-radius: 9px; background: #00e676; border: 2px solid #fff;")
+            self.status_dot.setToolTip("Connected to Internet")
+        except Exception:
+            self.status_dot.setStyleSheet("border-radius: 9px; background: #e74c3c; border: 2px solid #fff;")
+            self.status_dot.setToolTip("No Internet Connection")
+    def toggle_medical_mode(self):
+        self.medical_mode = not self.medical_mode
+        if self.medical_mode:
+            # Medical color coding: blue/green/white
+            self.setStyleSheet("QWidget { background: #e3f6fd; } QFrame { background: #f8fdff; border-radius: 16px; } QLabel { color: #006266; }")
+            self.medical_btn.setText("Normal Mode")
+            self.medical_btn.setStyleSheet("background: #0984e3; color: white; border-radius: 10px; padding: 4px 18px;")
+        else:
+            self.setStyleSheet("")
+            self.medical_btn.setText("Medical Mode")
+            self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
+    def toggle_dark_mode(self):
+        self.dark_mode = not self.dark_mode
+        if self.dark_mode:
+            self.setStyleSheet("""
+                QWidget { background: #181818; color: #fff; }
+                QFrame { background: #232323 !important; border-radius: 16px; color: #fff; border: 2px solid #fff; }
+                QLabel { color: #fff; }
+                QPushButton { background: #333; color: #ff6600; border-radius: 10px; }
+                QPushButton:checked { background: #ff6600; color: #fff; }
+                QCalendarWidget QWidget { background: #232323; color: #fff; }
+                QCalendarWidget QAbstractItemView { background: #232323; color: #fff; selection-background-color: #444; selection-color: #ff6600; }
+                QTextEdit { background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff; }
+            """)
+            self.dark_btn.setText("Light Mode")
+            # Set matplotlib canvas backgrounds to dark
+            self.ecg_canvas.axes.set_facecolor("#232323")
+            self.ecg_canvas.figure.set_facecolor("#232323")
+            for child in self.findChildren(QFrame):
+                child.setStyleSheet("background: #232323; border-radius: 16px; color: #fff; border: 2px solid #fff;")
+                for canvas in child.findChildren(MplCanvas):
+                    canvas.axes.set_facecolor("#232323")
+                    canvas.figure.set_facecolor("#232323")
+                    canvas.draw()
+                for cal in child.findChildren(QCalendarWidget):
+                    cal.setStyleSheet("background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff;")
+                for txt in child.findChildren(QTextEdit):
+                    txt.setStyleSheet("background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff;")
+            # Remove all margins and spacing for a seamless dark look
+            self.layout().setContentsMargins(0, 0, 0, 0)
+            self.layout().setSpacing(10)
+        else:
+            self.setStyleSheet("")
+            self.dark_btn.setText("Dark Mode")
+            self.ecg_canvas.axes.set_facecolor("#eee")
+            self.ecg_canvas.figure.set_facecolor("#fff")
+            for child in self.findChildren(QFrame):
+                child.setStyleSheet("")
+                for canvas in child.findChildren(MplCanvas):
+                    canvas.axes.set_facecolor("#fff")
+                    canvas.figure.set_facecolor("#fff")
+                    canvas.draw()
+                for cal in child.findChildren(QCalendarWidget):
+                    cal.setStyleSheet("")
+                for txt in child.findChildren(QTextEdit):
+                    txt.setStyleSheet("")
+            self.layout().setContentsMargins(20, 20, 20, 20)
+            self.layout().setSpacing(20)
+    def center_on_screen(self):
+        qr = self.frameGeometry()
+        cp = QApplication.desktop().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())

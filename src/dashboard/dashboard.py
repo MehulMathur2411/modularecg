@@ -147,7 +147,9 @@ class Dashboard(QWidget):
         heart_label = QLabel("Live Heart Rate Overview")
         heart_label.setFont(QFont("Arial", 14, QFont.Bold))
         heart_img = QLabel()
-        self.heart_pixmap = QPixmap(r"C:/Users/DELL/Desktop/EcgFR/assets/her.png")
+        # Use a portable path for the heart image asset
+        heart_img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "her.png")
+        self.heart_pixmap = QPixmap(heart_img_path)
         self.heart_base_size = 220
         heart_img.setFixedSize(self.heart_base_size + 20, self.heart_base_size + 20)
         heart_img.setAlignment(Qt.AlignCenter)

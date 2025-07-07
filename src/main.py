@@ -343,6 +343,29 @@ def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500):
     window_size = 500
     if len(ecg_signal) > window_size:
         ecg_signal = ecg_signal[-window_size:]
+    # --- Insert artificial gap (isoelectric line) between cycles for visualization ---
+    # Detect R peaks to find cycles
+    r_peaks, _ = find_peaks(ecg_signal, distance=int(0.2 * sampling_rate), prominence=0.6 * np.std(ecg_signal))
+    gap_length = int(0.08 * sampling_rate)  # 80 ms gap (40 samples at 500Hz)
+    ecg_with_gaps = []
+    last_idx = 0
+    for i, r in enumerate(r_peaks):
+        # Add segment up to this R peak
+        if i == 0:
+            ecg_with_gaps.extend(ecg_signal[:r+1])
+        else:
+            ecg_with_gaps.extend(ecg_signal[last_idx+1:r+1])
+        # Add gap after each cycle except last
+        if i < len(r_peaks) - 1:
+            baseline = int(np.mean(ecg_signal))
+            ecg_with_gaps.extend([baseline] * gap_length)
+        last_idx = r
+    # Add the rest of the signal after last R
+    if len(r_peaks) > 0 and last_idx+1 < len(ecg_signal):
+        ecg_with_gaps.extend(ecg_signal[last_idx+1:])
+    elif len(r_peaks) == 0:
+        ecg_with_gaps = list(ecg_signal)
+    ecg_signal = np.array(ecg_with_gaps)
     x = np.arange(len(ecg_signal))
     ax.clear()
     ax.plot(x, ecg_signal, color='black', lw=1)  # Black line for white background

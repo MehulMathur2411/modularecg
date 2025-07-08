@@ -10,6 +10,7 @@ from auth.sign_in import SignIn
 from auth.sign_out import SignOut
 from dashboard.dashboard import Dashboard
 from splash_screen import SplashScreen
+from ecg.pan_tompkins import pan_tompkins
 
 
 USER_DATA_FILE = "users.json"
@@ -334,6 +335,164 @@ class LoginRegisterDialog(QDialog):
         if not hasattr(self, '_nav_windows'):
             self._nav_windows = []
         self._nav_windows.append(nav_win)
+
+
+def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500, arrhythmia_result=None, r_peaks=None, use_pan_tompkins=False):
+    import numpy as np
+    from scipy.signal import find_peaks
+    # Use only the last 500 samples for live effect (1 second at 500Hz)
+    window_size = 500
+    if len(ecg_signal) > window_size:
+        ecg_signal = ecg_signal[-window_size:]
+    # --- Insert artificial gap (isoelectric line) between cycles for visualization ---
+    # Detect R peaks to find cycles
+    if use_pan_tompkins:
+        r_peaks = pan_tompkins(ecg_signal, fs=sampling_rate)
+    else:
+        r_peaks, _ = find_peaks(ecg_signal, distance=int(0.2 * sampling_rate), prominence=0.6 * np.std(ecg_signal))
+    gap_length = int(0.08 * sampling_rate)  # 80 ms gap (40 samples at 500Hz)
+    ecg_with_gaps = []
+    last_idx = 0
+    for i, r in enumerate(r_peaks):
+        # Add segment up to this R peak
+        if i == 0:
+            ecg_with_gaps.extend(ecg_signal[:r+1])
+        else:
+            ecg_with_gaps.extend(ecg_signal[last_idx+1:r+1])
+        # Add gap after each cycle except last
+        if i < len(r_peaks) - 1:
+            baseline = int(np.mean(ecg_signal))
+            ecg_with_gaps.extend([baseline] * gap_length)
+        last_idx = r
+    # Add the rest of the signal after last R
+    if len(r_peaks) > 0 and last_idx+1 < len(ecg_signal):
+        ecg_with_gaps.extend(ecg_signal[last_idx+1:])
+    elif len(r_peaks) == 0:
+        ecg_with_gaps = list(ecg_signal)
+    ecg_signal = np.array(ecg_with_gaps)
+    x = np.arange(len(ecg_signal))
+    ax.clear()
+    ax.plot(x, ecg_signal, color='black', lw=1)  # Black line for white background
+
+    # --- R peak detection (highest, most prominent) ---
+    r_peaks, _ = find_peaks(ecg_signal, distance=int(0.2 * sampling_rate), prominence=0.6 * np.std(ecg_signal))
+
+    # Q and S: local minima before and after R
+    q_peaks = []
+    s_peaks = []
+    for r in r_peaks:
+        q_start = max(0, r - int(0.06 * sampling_rate))
+        q_end = r
+        if q_end > q_start:
+            q_idx = np.argmin(ecg_signal[q_start:q_end]) + q_start
+            q_peaks.append(q_idx)
+        s_start = r
+        s_end = min(len(ecg_signal), r + int(0.06 * sampling_rate))
+        if s_end > s_start:
+            s_idx = np.argmin(ecg_signal[s_start:s_end]) + s_start
+            s_peaks.append(s_idx)
+
+    # P: positive peak before Q (within 0.1-0.2s)
+    p_peaks = []
+    for q in q_peaks:
+        p_start = max(0, q - int(0.2 * sampling_rate))
+        p_end = q - int(0.08 * sampling_rate)
+        if p_end > p_start:
+            p_candidates, _ = find_peaks(ecg_signal[p_start:p_end], prominence=0.1 * np.std(ecg_signal))
+            if len(p_candidates) > 0:
+                # Use the most prominent (highest) candidate for P, safe indexing
+                candidate_vals = ecg_signal[p_start:p_end][p_candidates]
+                if len(candidate_vals) > 0:
+                    p_peak_idx = p_candidates[np.argmax(candidate_vals)]
+                    p_peaks.append(p_start + p_peak_idx)
+
+    # T: positive peak after S (within 0.1-0.4s)
+    t_peaks = []
+    for s in s_peaks:
+        t_start = s + int(0.08 * sampling_rate)
+        t_end = min(len(ecg_signal), s + int(0.4 * sampling_rate))
+        if t_end > t_start:
+            t_candidates, _ = find_peaks(ecg_signal[t_start:t_end], prominence=0.1 * np.std(ecg_signal))
+            if len(t_candidates) > 0:
+                # Use the most prominent (highest) candidate for T, safe indexing
+                candidate_vals = ecg_signal[t_start:t_end][t_candidates]
+                if len(candidate_vals) > 0:
+                    t_peak_idx = t_candidates[np.argmax(candidate_vals)]
+                    t_peaks.append(t_start + t_peak_idx)
+
+    # Only show the most recent peak for each label (if any)
+    peak_dict = {'P': p_peaks, 'Q': q_peaks, 'R': r_peaks, 'S': s_peaks, 'T': t_peaks}
+    ax.lines.clear()
+    # --- Heart rate, PR, QRS, QTc, QRS axis, ST segment calculation ---
+    heart_rate = None
+    pr_interval = None
+    qrs_duration = None
+    qt_interval = None
+    qtc_interval = None
+    qrs_axis = '--'
+    st_segment = '--'
+    if len(r_peaks) > 1:
+        rr_intervals = np.diff(r_peaks) / sampling_rate  # in seconds
+        mean_rr = np.mean(rr_intervals)
+        if mean_rr > 0:
+            heart_rate = 60.0 / mean_rr
+    if len(p_peaks) > 0 and len(r_peaks) > 0:
+        pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / sampling_rate  # ms
+    if len(q_peaks) > 0 and len(s_peaks) > 0:
+        qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
+    if len(q_peaks) > 0 and len(t_peaks) > 0:
+        qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
+    if qt_interval and heart_rate:
+        qtc_interval = qt_interval / np.sqrt(60.0 / heart_rate)  # Bazett's formula
+    # QRS axis and ST segment are placeholders unless you have multi-lead data
+    # --- End metrics ---
+    # --- Display metrics and clinical info on the plot ---
+    info_lines = [
+        f"PR Interval: {pr_interval:.1f} ms (120–200 ms)" if pr_interval else "PR Interval: --",
+        f"QRS Duration: {qrs_duration:.1f} ms (<120 ms)" if qrs_duration else "QRS Duration: --",
+        f"QTc Interval: {qtc_interval:.1f} ms (M<440, F<460)" if qtc_interval else "QTc Interval: --",
+        f"QRS Axis: {qrs_axis} (N: -30° to +90°)" ,
+        f"ST Segment: {st_segment} (Normal: Isoelectric)",
+        f"Heart Rate: {heart_rate:.1f} bpm (60–100)" if heart_rate else "Heart Rate: --"
+    ]
+    clinical_lines = [
+        "PR >200: 1° heart block | <120: WPW/junctional",
+        "QRS >120: BBB, VT, hyperK+",
+        "QTc >440/460: Torsades risk | <: HyperCa, digoxin",
+        "Axis < -30: LAD | > +90: RAD",
+        "ST ↑: MI | ST ↓: Ischemia/digitalis",
+        "HR <60: Brady | >100: Tachy"
+    ]
+    y0 = np.min(ecg_signal) + 0.05 * (np.max(ecg_signal) - np.min(ecg_signal))
+    for i, line in enumerate(info_lines):
+        ax.text(0, y0 + i*20, line, color='#2453ff', fontsize=10, fontweight='bold', ha='left', va='bottom', zorder=20, bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, boxstyle='round,pad=0.2'))
+    for i, line in enumerate(clinical_lines):
+        ax.text(0, y0 + (len(info_lines)+i)*20, line, color='#ff6600', fontsize=9, ha='left', va='bottom', zorder=20, bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, boxstyle='round,pad=0.1'))
+    # --- End display ---
+    # --- Arrhythmia highlighting ---
+    highlight = arrhythmia_result and arrhythmia_result not in [None, "None Detected", "Detecting..."]
+    if highlight and len(r_peaks) > 1:
+        # Highlight the last RR interval (between last two R peaks)
+        start = r_peaks[-2]
+        end = r_peaks[-1]
+        ax.axvspan(start, end, color='yellow', alpha=0.3, zorder=5)
+    for label, idxs in peak_dict.items():
+        if len(idxs) > 0:
+            idx = idxs[-1]  # Most recent
+            ax.plot(idx, ecg_signal[idx], 'o', color='green', markersize=6, zorder=10)
+            y_offset = 0.12 * (np.max(ecg_signal) - np.min(ecg_signal))
+            if label in ['P', 'T']:
+                ax.text(idx, ecg_signal[idx]+y_offset, label, color='green', fontsize=10, fontweight='bold', ha='center', va='bottom', zorder=11, bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, boxstyle='round,pad=0.1'))
+            else:
+                ax.text(idx, ecg_signal[idx]-y_offset, label, color='green', fontsize=10, fontweight='bold', ha='center', va='top', zorder=11, bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, boxstyle='round,pad=0.1'))
+    # No legend, no grid, no ticks for a clean look
+    ax.set_facecolor('white')
+    ax.figure.patch.set_facecolor('white')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.grid(False)
+    # Optionally print or return metrics for display elsewhere
+    # print(f"HR: {heart_rate}, PR: {pr_interval}, QRS: {qrs_duration}, QTc: {qtc_interval}, Axis: {qrs_axis}, ST: {st_segment}")
 
 
 def main():

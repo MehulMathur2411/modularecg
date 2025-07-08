@@ -10,6 +10,7 @@ from auth.sign_in import SignIn
 from auth.sign_out import SignOut
 from dashboard.dashboard import Dashboard
 from splash_screen import SplashScreen
+from ecg.pan_tompkins import pan_tompkins
 
 
 USER_DATA_FILE = "users.json"
@@ -336,7 +337,7 @@ class LoginRegisterDialog(QDialog):
         self._nav_windows.append(nav_win)
 
 
-def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500):
+def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500, arrhythmia_result=None, r_peaks=None, use_pan_tompkins=False):
     import numpy as np
     from scipy.signal import find_peaks
     # Use only the last 500 samples for live effect (1 second at 500Hz)
@@ -345,7 +346,10 @@ def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500):
         ecg_signal = ecg_signal[-window_size:]
     # --- Insert artificial gap (isoelectric line) between cycles for visualization ---
     # Detect R peaks to find cycles
-    r_peaks, _ = find_peaks(ecg_signal, distance=int(0.2 * sampling_rate), prominence=0.6 * np.std(ecg_signal))
+    if use_pan_tompkins:
+        r_peaks = pan_tompkins(ecg_signal, fs=sampling_rate)
+    else:
+        r_peaks, _ = find_peaks(ecg_signal, distance=int(0.2 * sampling_rate), prominence=0.6 * np.std(ecg_signal))
     gap_length = int(0.08 * sampling_rate)  # 80 ms gap (40 samples at 500Hz)
     ecg_with_gaps = []
     last_idx = 0
@@ -465,6 +469,13 @@ def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500):
     for i, line in enumerate(clinical_lines):
         ax.text(0, y0 + (len(info_lines)+i)*20, line, color='#ff6600', fontsize=9, ha='left', va='bottom', zorder=20, bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, boxstyle='round,pad=0.1'))
     # --- End display ---
+    # --- Arrhythmia highlighting ---
+    highlight = arrhythmia_result and arrhythmia_result not in [None, "None Detected", "Detecting..."]
+    if highlight and len(r_peaks) > 1:
+        # Highlight the last RR interval (between last two R peaks)
+        start = r_peaks[-2]
+        end = r_peaks[-1]
+        ax.axvspan(start, end, color='yellow', alpha=0.3, zorder=5)
     for label, idxs in peak_dict.items():
         if len(idxs) > 0:
             idx = idxs[-1]  # Most recent

@@ -1,2 +1,0 @@
-# ECG Metrics Output
-# Format: PR_interval(ms), QRS_duration(ms), QTc_interval(ms), QRS_axis, ST_segment

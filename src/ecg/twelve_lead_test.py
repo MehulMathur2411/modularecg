@@ -7,7 +7,7 @@ import serial.tools.list_ports
 import csv
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QGroupBox, QFileDialog,
-    QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit
+    QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit, QFrame
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QTimer
@@ -81,6 +81,72 @@ class LiveLeadWindow(QWidget):
             plot_data[-n:] = centered
             self.line.set_ydata(plot_data)
             self.canvas.draw_idle()
+
+def detect_arrhythmia(heart_rate, qrs_duration, rr_intervals, pr_interval=None, p_peaks=None, r_peaks=None, ecg_signal=None):
+    """
+    Expanded arrhythmia detection logic for common clinical arrhythmias.
+    - Sinus Bradycardia: HR < 60, regular RR
+    - Sinus Tachycardia: HR > 100, regular RR
+    - Atrial Fibrillation: Irregular RR, absent/irregular P waves
+    - Atrial Flutter: Sawtooth P pattern (not robustly detected here)
+    - PAC: Early P, narrow QRS, compensatory pause (approximate)
+    - PVC: Early wide QRS, no P, compensatory pause (approximate)
+    - VT: HR > 100, wide QRS (>120ms), regular
+    - VF: Chaotic, no clear QRS, highly irregular
+    - Asystole: Flatline (very low amplitude, no R)
+    - SVT: HR > 150, narrow QRS, regular
+    - Heart Block: PR > 200 (1°), dropped QRS (2°), AV dissociation (3°)
+    """
+    try:
+        if rr_intervals is None or len(rr_intervals) < 2:
+            return "Detecting..."
+        rr_std = np.std(rr_intervals)
+        rr_mean = np.mean(rr_intervals)
+        rr_reg = rr_std < 0.12  # Regular if std < 120ms
+        # Asystole: flatline (no R peaks, or very low amplitude)
+        if r_peaks is not None and len(r_peaks) < 1:
+            if ecg_signal is not None and np.ptp(ecg_signal) < 50:
+                return "Asystole (Flatline)"
+            return "No QRS Detected"
+        # VF: highly irregular, no clear QRS, rapid undulating
+        if r_peaks is not None and len(r_peaks) > 5:
+            if rr_std > 0.25 and np.ptp(ecg_signal) > 100 and heart_rate and heart_rate > 180:
+                return "Ventricular Fibrillation (VF)"
+        # VT: HR > 100, wide QRS (>120ms), regular
+        if heart_rate and heart_rate > 100 and qrs_duration and qrs_duration > 120 and rr_reg:
+            return "Ventricular Tachycardia (VT)"
+        # Sinus Bradycardia: HR < 60, regular
+        if heart_rate and heart_rate < 60 and rr_reg:
+            return "Sinus Bradycardia"
+        # Sinus Tachycardia: HR > 100, regular
+        if heart_rate and heart_rate > 100 and qrs_duration and qrs_duration <= 120 and rr_reg:
+            return "Sinus Tachycardia"
+        # SVT: HR > 150, narrow QRS, regular
+        if heart_rate and heart_rate > 150 and qrs_duration and qrs_duration <= 120 and rr_reg:
+            return "Supraventricular Tachycardia (SVT)"
+        # AFib: Irregular RR, absent/irregular P
+        if not rr_reg and (p_peaks is None or len(p_peaks) < len(r_peaks) * 0.5):
+            return "Atrial Fibrillation (AFib)"
+        # Atrial Flutter: (not robust, but if HR ~150, regular, and P waves rapid)
+        if heart_rate and 140 < heart_rate < 170 and rr_reg and p_peaks is not None and len(p_peaks) > len(r_peaks):
+            return "Atrial Flutter (suggestive)"
+        # PAC: Early P, narrow QRS, compensatory pause (approximate)
+        if p_peaks is not None and r_peaks is not None and len(p_peaks) > 1 and len(r_peaks) > 1:
+            pr_diffs = np.diff([r - p for p, r in zip(p_peaks, r_peaks)])
+            if np.any(pr_diffs < -0.15 * len(ecg_signal)) and qrs_duration and qrs_duration <= 120:
+                return "Premature Atrial Contraction (PAC)"
+        # PVC: Early wide QRS, no P, compensatory pause (approximate)
+        if qrs_duration and qrs_duration > 120 and (p_peaks is None or len(p_peaks) < len(r_peaks) * 0.5):
+            return "Premature Ventricular Contraction (PVC)"
+        # Heart Block: PR > 200ms (1°), dropped QRS (2°), AV dissociation (3°)
+        if pr_interval and pr_interval > 200:
+            return "Heart Block (1° AV)"
+        # If QRS complexes are missing (dropped beats)
+        if r_peaks is not None and len(r_peaks) < len(ecg_signal) / 500 * heart_rate * 0.7:
+            return "Heart Block (2°/3° AV, dropped QRS)"
+        return "None Detected"
+    except Exception as e:
+        return "Detecting..."
 
 class ECGTestPage(QWidget):
     LEADS_MAP = {
@@ -308,16 +374,43 @@ class ECGTestPage(QWidget):
         canvas = FigureCanvas(fig)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(canvas)
-        # Add metrics box below the plot
-        metrics_box = QGroupBox("Live ECG Metrics")
-        metrics_layout = QFormLayout(metrics_box)
+        # Create metric labels for cards
         pr_label = QLabel("-- ms")
         qrs_label = QLabel("-- ms")
         qtc_label = QLabel("-- ms")
-        metrics_layout.addRow("PR Interval:", pr_label)
-        metrics_layout.addRow("QRS Duration:", qrs_label)
-        metrics_layout.addRow("QTc Interval:", qtc_label)
-        layout.addWidget(metrics_box)
+        arrhythmia_label = QLabel("--")
+        # Add metrics card row below the plot (card style)
+        metrics_row = QHBoxLayout()
+        def create_metric_card(title, label_widget):
+            card = QFrame()
+            card.setStyleSheet("""
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #fff7f0, stop:1 #ffe0cc);
+                border-radius: 32px;
+                border: 2.5px solid #ff6600;
+                padding: 18px 18px;
+            """)
+            vbox = QVBoxLayout(card)
+            vbox.setSpacing(6)
+            lbl = QLabel(title)
+            lbl.setAlignment(Qt.AlignHCenter)
+            lbl.setStyleSheet("color: #ff6600; font-size: 18px; font-weight: bold;")
+            label_widget.setStyleSheet("font-size: 32px; font-weight: bold; color: #222; padding: 8px 0;")
+            vbox.addWidget(lbl)
+            vbox.addWidget(label_widget)
+            vbox.setAlignment(Qt.AlignHCenter)
+            return card
+        metrics_row.setSpacing(32)
+        metrics_row.setContentsMargins(32, 16, 32, 24)
+        metrics_row.setAlignment(Qt.AlignHCenter)
+        cards = [create_metric_card("PR Interval", pr_label),
+                 create_metric_card("QRS Duration", qrs_label),
+                 create_metric_card("QTc Interval", qtc_label),
+                 create_metric_card("Arrhythmia", arrhythmia_label)]
+        for card in cards:
+            card.setMinimumWidth(0)
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            metrics_row.addWidget(card)
+        layout.addLayout(metrics_row)
         self.detailed_widget.setLayout(layout)
         self.detailed_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.page_stack.setCurrentIndex(1)
@@ -408,25 +501,48 @@ class ECGTestPage(QWidget):
                                 ax.text(idx, ecg_signal[idx]-y_offset, label, color='green', fontsize=12, fontweight='bold', ha='center', va='top', zorder=11, bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, boxstyle='round,pad=0.1'))
                 # --- Metrics (for Lead II only, based on R peaks) ---
                 if lead == "II":
+                    heart_rate = None
+                    pr_interval = None
+                    qrs_duration = None
+                    qt_interval = None
+                    qtc_interval = None
+                    rr_intervals = None
+
                     if len(r_peaks) > 1:
-                        pr_interval = (r_peaks[-1] - r_peaks[-2]) * 1000 / sampling_rate
-                        pr_label.setText(f"{pr_interval:.1f} ms")
-                    else:
-                        pr_label.setText("-- ms")
-                    if len(q_peaks) > 1 and len(s_peaks) > 1:
-                        qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate
-                        qrs_label.setText(f"{qrs_duration:.1f} ms")
-                    else:
-                        qrs_label.setText("-- ms")
-                    if len(r_peaks) > 1 and len(t_peaks) > 0:
-                        qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate if len(q_peaks) > 0 else 0
-                        qtc_label.setText(f"{qt_interval:.1f} ms" if qt_interval > 0 else "-- ms")
-                    else:
-                        qtc_label.setText("-- ms")
+                        rr_intervals = np.diff(r_peaks) / sampling_rate  # in seconds
+                        mean_rr = np.mean(rr_intervals)
+                        if mean_rr > 0:
+                            heart_rate = 60.0 / mean_rr
+                    if len(p_peaks) > 0 and len(r_peaks) > 0:
+                        pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / sampling_rate  # ms
+                    if len(q_peaks) > 0 and len(s_peaks) > 0:
+                        qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
+                    if len(q_peaks) > 0 and len(t_peaks) > 0:
+                        qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
+                    if qt_interval and heart_rate:
+                        qtc_interval = qt_interval / np.sqrt(60.0 / heart_rate)  # Bazett's formula
+
+                    pr_label.setText(f"{pr_interval:.1f} ms" if pr_interval else "-- ms")
+                    qrs_label.setText(f"{qrs_duration:.1f} ms" if qrs_duration else "-- ms")
+                    qtc_label.setText(f"{qtc_interval:.1f} ms" if qtc_interval else "-- ms")
+                    
+                    if hasattr(self, 'dashboard_callback'):
+                        self.dashboard_callback({
+                            'PR': pr_interval,
+                            'QRS': qrs_duration,
+                            'QTc': qtc_interval,
+                            'QRS_axis': '--',  # Replace with actual axis if you compute it
+                            'ST': None  # Replace with actual ST segment if you compute it
+                        })
+
+                    # --- Arrhythmia detection ---
+                    arrhythmia_result = detect_arrhythmia(heart_rate, qrs_duration, rr_intervals)
+                    arrhythmia_label.setText(arrhythmia_result)
                 else:
                     pr_label.setText("-- ms")
                     qrs_label.setText("-- ms")
                     qtc_label.setText("-- ms")
+                    arrhythmia_label.setText("--")
             else:
                 line.set_data([], [])
                 ax.set_xlim(0, 1)
@@ -533,6 +649,31 @@ class ECGTestPage(QWidget):
         self.timer.stop()
         if hasattr(self, '_12to1_timer'):
             self._12to1_timer.stop()
+            
+        if hasattr(self, 'dashboard_callback'):
+            lead2_data = self.data.get("II", [])[-500:]
+            if len(lead2_data) > 100:
+                from ecg.ecg_pqrst import detect_pqrst
+                fs = 500
+                peaks = detect_pqrst(np.array(lead2_data), fs=fs)
+                p_peaks = peaks['P']
+                q_peaks = peaks['Q']
+                r_peaks = peaks['R']
+                s_peaks = peaks['S']
+                t_peaks = peaks['T']
+                pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / fs if p_peaks and r_peaks else None
+                qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / fs if q_peaks and s_peaks else None
+                qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / fs if q_peaks and t_peaks else None
+                qtc_interval = qt_interval / np.sqrt(60.0 / 75.0) if qt_interval else None  # Use last HR or estimate
+                qrs_axis = "--"
+                st_segment = (t_peaks[-1] - s_peaks[-1]) * 1000 / fs if s_peaks and t_peaks else None
+                self.dashboard_callback({
+                    'PR': pr_interval,
+                    'QRS': qrs_duration,
+                    'QTc': qtc_interval,
+                    'QRS_axis': qrs_axis,
+                    'ST': st_segment
+                })
 
     def update_plot(self):
         if not self.serial_reader:

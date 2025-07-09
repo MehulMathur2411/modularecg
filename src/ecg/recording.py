@@ -35,7 +35,7 @@ class Lead12BlackPage(QWidget):
         self.lines = []
         self.ecg_buffers = [np.zeros(5000) for _ in range(12)]
         self.ptrs = [0 for _ in range(12)]
-        self.window_size = 1000 
+        self.window_size = 1000
         self.lead_names = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
         for i in range(12):
             label = QLabel(self.lead_names[i])
@@ -50,7 +50,7 @@ class Lead12BlackPage(QWidget):
             ax.set_ylim(-3, 3)
             ax.axvline(x=0, color='white', linestyle='--', linewidth=1)
             ax.set_title("", color='white', fontsize=12, loc='left')
-            line, = ax.plot(self.data[i], color='lime', lw=1)
+            line, = ax.plot(np.zeros(self.window_size), color='lime', lw=1)
             canvas = FigureCanvas(fig)
             layout.addWidget(canvas)
             self.canvases.append(canvas)
@@ -66,7 +66,6 @@ class Lead12BlackPage(QWidget):
             self.ptrs[i] = (self.ptrs[i] + 1) % (len(self.ecg_buffers[i]) - self.window_size)
             window = self.ecg_buffers[i][self.ptrs[i]:self.ptrs[i]+self.window_size]
             self.lines[i].set_ydata(window)
-
             # --- P peak detection and labeling for each lead ---
             if len(window) >= 1000:
                 try:
@@ -90,7 +89,6 @@ class Lead12BlackPage(QWidget):
                 except Exception as e:
                     print(f"ECG analysis error in lead {self.lead_names[i]}:", e)
             self.canvases[i].draw()
-
         # --- Lead II metrics and dashboard update (as before) ---
         lead_ii_signal = self.ecg_buffers[1][self.ptrs[1]:self.ptrs[1]+self.window_size]
         if len(lead_ii_signal) >= 1000:
@@ -117,107 +115,6 @@ class Lead12BlackPage(QWidget):
                     QTimer.singleShot(0, self.dashboard.repaint)
             except Exception as e:
                 print("ECG analysis error:", e)
-
-    def __init__(self, parent=None, dashboard=None):
-        super().__init__(parent)
-        self.dashboard = dashboard
-        self.setStyleSheet("background: black;")
-        layout = QVBoxLayout(self)
-        self.canvases = []
-        self.lines = []
-        self.data = [np.zeros(500) for _ in range(12)]
-        self.lead_names = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
-        for i in range(12):
-            row = QVBoxLayout()
-            # Label above the wave
-            label = QLabel(self.lead_names[i])
-            label.setStyleSheet("color: white; font-size: 14px; font-weight: bold; margin-bottom: 2px;")
-            label.setFixedWidth(70)
-            layout.addWidget(label, alignment=Qt.AlignLeft)
-            fig = Figure(figsize=(2, 2), facecolor='black')
-            ax = fig.add_subplot(111)
-            ax.set_facecolor('black')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.set_ylim(-3, 3)
-            # Draw vertical line at x=0
-            ax.axvline(x=0, color='white', linestyle='--', linewidth=1)
-            ax.set_title("", color='white', fontsize=12, loc='left')
-            # Plot ECG
-            line, = ax.plot(self.data[i], color='lime', lw=1)
-            canvas = FigureCanvas(fig)
-            layout.addWidget(canvas)
-            self.canvases.append(canvas)
-            self.lines.append(line)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_data)
-        self.timer.start(30)  # ~33 FPS
-        self.setLayout(layout)
-
-        # def update_data(self):
-        #     for i in range(12):
-        #         self.data[i] = np.roll(self.data[i], -1)
-        #         self.data[i][-1] = 1.5 * np.sin(np.linspace(0, 2 * np.pi, 500)[(self.data[i].size-1)%500]) + 0.2 * np.random.randn()
-        #         self.lines[i].set_ydata(self.data[i])
-
-        #         # --- PQRST detection and labeling for each lead ---
-        #         lead_signal = self.data[i]
-        #         if len(lead_signal) >= 500:
-        #             try:
-        #                 signals, info = nk.ecg_process(lead_signal, sampling_rate=500)
-        #                 p_peaks = info.get("ECG_P_Peaks", [])
-        #                 q_peaks = info.get("ECG_Q_Peaks", [])
-        #                 r_peaks = info.get("ECG_R_Peaks", [])
-        #                 s_peaks = info.get("ECG_S_Peaks", [])
-        #                 t_peaks = info.get("ECG_T_Peaks", [])
-        #                 ax = self.canvases[i].figure.axes[0]
-        #                 main_line = ax.lines[0]
-        #                 ax.lines = [main_line]  # Keep only the main ECG line
-        #                # ...inside your update_data loop for each lead...
-        #                 for idxs, label in zip([p_peaks, q_peaks, r_peaks, s_peaks, t_peaks], ['P', 'Q', 'R', 'S', 'T']):
-        #                     if len(idxs) > 0:
-        #                         # Plot marker (optional, can keep original color if you want)
-        #                         ax.plot(idxs, lead_signal[idxs], 'o', color='green', label=label, markersize=8, zorder=10)
-        #                         # Add green text labels above each marker
-        #                         for idx in idxs:
-        #                             ax.text(idx, lead_signal[idx]+0.3, label, color='green', fontsize=8, ha='center', va='bottom', zorder=11)
-        #                 # Deduplicate legend labels
-        #                 handles, labels = ax.get_legend_handles_labels()
-        #                 by_label = dict(zip(labels, handles))
-        #                 ax.legend(by_label.values(), by_label.keys(), loc='upper right', fontsize=8)
-        #             except Exception as e:
-        #                 print(f"ECG analysis error in lead {self.lead_names[i]}:", e)
-        #         self.canvases[i].draw()
-
-        #     # --- Lead II metrics and dashboard update (as before) ---
-        #     lead_ii_signal = self.data[1]
-        #     if len(lead_ii_signal) >= 500:
-        #         try:
-        #             signals, info = nk.ecg_process(lead_ii_signal, sampling_rate=500)
-        #             p_peaks = info.get("ECG_P_Peaks", [])
-        #             q_peaks = info.get("ECG_Q_Peaks", [])
-        #             r_peaks = info.get("ECG_R_Peaks", [])
-        #             s_peaks = info.get("ECG_S_Peaks", [])
-        #             t_peaks = info.get("ECG_T_Peaks", [])
-        #             pr_interval = (q_peaks[0] - p_peaks[0]) / 500 if p_peaks and q_peaks else None
-        #             qrs_duration = (s_peaks[0] - q_peaks[0]) / 500 if q_peaks and s_peaks else None
-        #             qt_interval = (t_peaks[0] - q_peaks[0]) / 500 if t_peaks and q_peaks else None
-        #             rr = np.diff(r_peaks) / 500 if len(r_peaks) > 1 else [1]
-        #             qtc_interval = qt_interval / np.sqrt(np.mean(rr)) if qt_interval else None
-        #             qrs_axis = "--"  # Placeholder
-        #             st_segment = "--"  # Placeholder
-        #             # Write metrics and peak indices to txt file
-        #             with open("ecg_metrics_output.txt", "w") as f:
-        #                 f.write("# ECG Metrics Output\n")
-        #                 f.write("# Format: PR_interval(ms), QRS_duration(ms), QTc_interval(ms), QRS_axis, ST_segment\n")
-        #                 f.write(f"{pr_interval*1000 if pr_interval else '--'}, {qrs_duration*1000 if qrs_duration else '--'}, {qtc_interval*1000 if qtc_interval else '--'}, {qrs_axis}, {st_segment}\n")
-        #                 f.write(f"P_peaks: {list(p_peaks)}\nQ_peaks: {list(q_peaks)}\nR_peaks: {list(r_peaks)}\nS_peaks: {list(s_peaks)}\nT_peaks: {list(t_peaks)}\n")
-        #             if self.dashboard and hasattr(self.dashboard, "update_ecg_metrics"):
-        #                 self.dashboard.update_ecg_metrics(pr_interval, qrs_duration, qtc_interval, qrs_axis, st_segment)
-        #                 from PyQt5.QtCore import QTimer
-        #                 QTimer.singleShot(0, self.dashboard.repaint)
-        #         except Exception as e:
-        #             print("ECG analysis error:", e)
 
 class ECGMenu(QGroupBox):
     def __init__(self, parent=None, dashboard=None):

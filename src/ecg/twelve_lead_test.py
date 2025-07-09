@@ -525,6 +525,15 @@ class ECGTestPage(QWidget):
                     pr_label.setText(f"{pr_interval:.1f} ms" if pr_interval else "-- ms")
                     qrs_label.setText(f"{qrs_duration:.1f} ms" if qrs_duration else "-- ms")
                     qtc_label.setText(f"{qtc_interval:.1f} ms" if qtc_interval else "-- ms")
+                    
+                    if hasattr(self, 'dashboard_callback'):
+                        self.dashboard_callback({
+                            'PR': pr_interval,
+                            'QRS': qrs_duration,
+                            'QTc': qtc_interval,
+                            'QRS_axis': '--',  # Replace with actual axis if you compute it
+                            'ST': None  # Replace with actual ST segment if you compute it
+                        })
 
                     # --- Arrhythmia detection ---
                     arrhythmia_result = detect_arrhythmia(heart_rate, qrs_duration, rr_intervals)
@@ -640,6 +649,31 @@ class ECGTestPage(QWidget):
         self.timer.stop()
         if hasattr(self, '_12to1_timer'):
             self._12to1_timer.stop()
+            
+        if hasattr(self, 'dashboard_callback'):
+            lead2_data = self.data.get("II", [])[-500:]
+            if len(lead2_data) > 100:
+                from ecg.ecg_pqrst import detect_pqrst
+                fs = 500
+                peaks = detect_pqrst(np.array(lead2_data), fs=fs)
+                p_peaks = peaks['P']
+                q_peaks = peaks['Q']
+                r_peaks = peaks['R']
+                s_peaks = peaks['S']
+                t_peaks = peaks['T']
+                pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / fs if p_peaks and r_peaks else None
+                qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / fs if q_peaks and s_peaks else None
+                qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / fs if q_peaks and t_peaks else None
+                qtc_interval = qt_interval / np.sqrt(60.0 / 75.0) if qt_interval else None  # Use last HR or estimate
+                qrs_axis = "--"
+                st_segment = (t_peaks[-1] - s_peaks[-1]) * 1000 / fs if s_peaks and t_peaks else None
+                self.dashboard_callback({
+                    'PR': pr_interval,
+                    'QRS': qrs_duration,
+                    'QTc': qtc_interval,
+                    'QRS_axis': qrs_axis,
+                    'ST': st_segment
+                })
 
     def update_plot(self):
         if not self.serial_reader:

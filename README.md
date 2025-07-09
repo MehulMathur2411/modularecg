@@ -17,34 +17,54 @@ A modern, modular ECG monitor app for 12-lead ECG tests, real-time recording, an
 ## Project Structure
 
 ```
-EcgFR/
+modularecg/
 ├── src/
 │   ├── main.py
 │   ├── splash_screen.py
+│   ├── nav_home.py / nav_about.py / nav_blog.py / nav_pricing.py
 │   ├── auth/
 │   │   ├── sign_in.py
 │   │   └── sign_out.py
 │   ├── dashboard/
 │   │   └── dashboard.py
 │   ├── ecg/
+│   │   ├── lead_grid_view.py
+│   │   ├── lead_sequential_view.py
+│   │   ├── pan_tompkins.py
 │   │   ├── recording.py
 │   │   └── twelve_lead_test.py
 │   └── utils/
-│       └── helpers.py
+│       ├── helpers.py
+│       └── heartbeat_widget.py
 ├── assets/  # All images, GIFs, etc.
 ├── users.json
 ├── lead_ii_live.json
-├── last_ecg_date.json
 ├── requirements.txt
 └── README.md
 ```
+
+## Flow of Code
+
+1. **Start**: User runs `src/main.py`.
+2. **Splash Screen**: Shows animated splash while loading.
+3. **Login/Register**: User signs in or registers (handled by `auth/sign_in.py`).
+4. **Dashboard**: On successful login, `dashboard/dashboard.py` loads:
+   - Shows user info, heartbeat animation, and live ECG chart (from `lead_ii_live.json`).
+   - User can navigate to 12-lead ECG test, view statistics, or access other features.
+5. **12-Lead ECG Test**: User opens the test window (`ecg/twelve_lead_test.py`):
+   - Real-time ECG data is displayed for all leads.
+   - Menu allows saving, exporting, and switching views.
+   - Lead II data is written to `lead_ii_live.json` for dashboard sharing.
+6. **Live/Sequential View**: User can open sequential or overlay views for detailed analysis (`ecg/lead_sequential_view.py`).
+7. **Utilities**: Helper functions and widgets are in `utils/`.
+8. **Assets**: All images and GIFs are loaded from `assets/` using a resource path for PyInstaller compatibility.
 
 ## Installation
 
 1. Clone the repository:
    ```sh
    git clone <repository-url>
-   cd EcgFR
+   cd modularecg
    ```
 2. (Recommended) Create a virtual environment:
    ```sh

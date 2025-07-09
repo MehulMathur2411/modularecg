@@ -98,6 +98,39 @@ class LeadSequentialView(QWidget):
             self.mini_lines.append(mini_line)
             self.mini_canvases.append(mini_canvas)
         layout.addLayout(mini_layout)
+        # --- Card-style metrics row (only for 2-lead view) ---
+        if len(self.leads) == 2:
+            metrics_layout = QHBoxLayout()
+            metrics_layout.setSpacing(32)
+            metrics_layout.setContentsMargins(32, 20, 32, 20)
+            self.metric_cards = []
+            metric_names = ["PR Int", "QRS D", "QTc In", "Arrhy"]
+            for name in metric_names:
+                card = QWidget()
+                card.setStyleSheet("""
+                    background: #fff;
+                    border: 2.5px solid #ff6600;
+                    border-radius: 20px;
+                    min-width: 170px;
+                    min-height: 110px;
+                    max-height: 130px;
+                """)
+                card_layout = QVBoxLayout(card)
+                card_layout.setContentsMargins(12, 12, 12, 12)
+                label = QLabel(name)
+                label.setAlignment(Qt.AlignHCenter)
+                label.setStyleSheet("color: #ff6600; font-size: 22px; font-weight: bold;")
+                value = QLabel("--")
+                value.setAlignment(Qt.AlignHCenter)
+                value.setStyleSheet("color: #222; font-size: 38px; font-weight: bold;")
+                card_layout.addWidget(label)
+                card_layout.addWidget(value)
+                metrics_layout.addWidget(card)
+                self.metric_cards.append((label, value))
+            metrics_row = QWidget()
+            metrics_row.setLayout(metrics_layout)
+            metrics_row.setFixedHeight(150)
+            layout.addWidget(metrics_row)
         # ...existing code...
 
     def update_plot(self):

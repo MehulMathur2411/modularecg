@@ -7,7 +7,7 @@ import serial.tools.list_ports
 import csv
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QGroupBox, QFileDialog,
-    QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit
+    QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit, QFrame
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QTimer
@@ -91,7 +91,7 @@ def detect_arrhythmia(heart_rate, qrs_duration, rr_intervals, pr_interval=None, 
     - Atrial Flutter: Sawtooth P pattern (not robustly detected here)
     - PAC: Early P, narrow QRS, compensatory pause (approximate)
     - PVC: Early wide QRS, no P, compensatory pause (approximate)
-    - VT: HR > 100, wide QRS, regular
+    - VT: HR > 100, wide QRS (>120ms), regular
     - VF: Chaotic, no clear QRS, highly irregular
     - Asystole: Flatline (very low amplitude, no R)
     - SVT: HR > 150, narrow QRS, regular
@@ -374,18 +374,43 @@ class ECGTestPage(QWidget):
         canvas = FigureCanvas(fig)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(canvas)
-        # Add metrics box below the plot
-        metrics_box = QGroupBox("Live ECG Metrics")
-        metrics_layout = QFormLayout(metrics_box)
+        # Create metric labels for cards
         pr_label = QLabel("-- ms")
         qrs_label = QLabel("-- ms")
         qtc_label = QLabel("-- ms")
         arrhythmia_label = QLabel("--")
-        metrics_layout.addRow("PR Interval:", pr_label)
-        metrics_layout.addRow("QRS Duration:", qrs_label)
-        metrics_layout.addRow("QTc Interval:", qtc_label)
-        metrics_layout.addRow("Arrhythmia:", arrhythmia_label)
-        layout.addWidget(metrics_box)
+        # Add metrics card row below the plot (card style)
+        metrics_row = QHBoxLayout()
+        def create_metric_card(title, label_widget):
+            card = QFrame()
+            card.setStyleSheet("""
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #fff7f0, stop:1 #ffe0cc);
+                border-radius: 32px;
+                border: 2.5px solid #ff6600;
+                padding: 18px 18px;
+            """)
+            vbox = QVBoxLayout(card)
+            vbox.setSpacing(6)
+            lbl = QLabel(title)
+            lbl.setAlignment(Qt.AlignHCenter)
+            lbl.setStyleSheet("color: #ff6600; font-size: 18px; font-weight: bold;")
+            label_widget.setStyleSheet("font-size: 32px; font-weight: bold; color: #222; padding: 8px 0;")
+            vbox.addWidget(lbl)
+            vbox.addWidget(label_widget)
+            vbox.setAlignment(Qt.AlignHCenter)
+            return card
+        metrics_row.setSpacing(32)
+        metrics_row.setContentsMargins(32, 16, 32, 24)
+        metrics_row.setAlignment(Qt.AlignHCenter)
+        cards = [create_metric_card("PR Interval", pr_label),
+                 create_metric_card("QRS Duration", qrs_label),
+                 create_metric_card("QTc Interval", qtc_label),
+                 create_metric_card("Arrhythmia", arrhythmia_label)]
+        for card in cards:
+            card.setMinimumWidth(0)
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            metrics_row.addWidget(card)
+        layout.addLayout(metrics_row)
         self.detailed_widget.setLayout(layout)
         self.detailed_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.page_stack.setCurrentIndex(1)

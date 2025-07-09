@@ -326,6 +326,7 @@ class Dashboard(QWidget):
         # --- ECG Test Page ---
         from ecg.twelve_lead_test import ECGTestPage
         self.ecg_test_page = ECGTestPage("12 Lead ECG Test", self.page_stack)
+        self.ecg_test_page.dashboard_callback = self.update_ecg_metrics
         self.page_stack.addWidget(self.ecg_test_page)
         # --- Main layout ---
         main_layout = QVBoxLayout(self)
@@ -354,6 +355,19 @@ class Dashboard(QWidget):
         self.ecg_y[-1] = 1000 + 200 * np.sin(2 * np.pi * 2 * self.ecg_x[-1] + frame/10) + 50 * np.random.randn()
         self.ecg_line.set_ydata(self.ecg_y)
         return [self.ecg_line]
+    
+    def update_ecg_metrics(self, intervals):
+        if 'PR' in intervals and intervals['PR'] is not None:
+            self.metric_labels['pr_interval'].setText(f"{intervals['PR']:.1f} ms")
+        if 'QRS' in intervals and intervals['QRS'] is not None:
+            self.metric_labels['qrs_duration'].setText(f"{intervals['QRS']:.1f} ms")
+        if 'QTc' in intervals and intervals['QTc'] is not None:
+            self.metric_labels['qtc_interval'].setText(f"{intervals['QTc']:.1f} ms")
+        if 'QRS_axis' in intervals and intervals['QRS_axis'] is not None:
+            self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
+        if 'ST' in intervals and intervals['ST'] is not None:
+            self.metric_labels['st_segment'].setText(f"{intervals['ST']:.1f} ms")
+    
     def animate_heartbeat(self):
         # Heartbeat effect: scale up and down in a sine wave pattern
         beat = 1 + 0.13 * math.sin(self.heartbeat_phase) + 0.07 * math.sin(2 * self.heartbeat_phase)

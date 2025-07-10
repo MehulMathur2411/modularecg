@@ -316,6 +316,12 @@ class Dashboard(QWidget):
             self.metric_labels[key] = val  # Store reference for live update
         grid.addWidget(metrics_card, 0, 1, 1, 2)
         dashboard_layout.addLayout(grid)
+        
+        self.generate_report_btn = QPushButton("Generate Report")
+        self.generate_report_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 10px; padding: 8px 24px; font-size: 16px; font-weight: bold;")
+        self.generate_report_btn.clicked.connect(self.generate_pdf_report)
+        dashboard_layout.addWidget(self.generate_report_btn, alignment=Qt.AlignRight)
+        
         # --- ECG Animation Setup ---
         self.ecg_x = np.linspace(0, 2, 500)
         self.ecg_y = 1000 + 200 * np.sin(2 * np.pi * 2 * self.ecg_x) + 50 * np.random.randn(500)
@@ -367,6 +373,101 @@ class Dashboard(QWidget):
             self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
         if 'ST' in intervals and intervals['ST'] is not None:
             self.metric_labels['st_segment'].setText(f"{intervals['ST']:.1f} ms")
+            
+    def generate_pdf_report(self):
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+        import datetime
+        from ecg.ecg_report_generator import generate_ecg_html_report
+
+        # Gather details from dashboard
+        HR = self.metric_labels['heart_rate'].text().split()[0] if 'heart_rate' in self.metric_labels else "--"
+        PR = self.metric_labels['pr_interval'].text().split()[0] if 'pr_interval' in self.metric_labels else "--"
+        QRS = self.metric_labels['qrs_duration'].text().split()[0] if 'qrs_duration' in self.metric_labels else "--"
+        QT = self.metric_labels['qt_interval'].text().split()[0] if 'qt_interval' in self.metric_labels else "--"
+        QTc = self.metric_labels['qtc_interval'].text().split()[0] if 'qtc_interval' in self.metric_labels else "--"
+        QRS_axis = self.metric_labels['qrs_axis'].text() if 'qrs_axis' in self.metric_labels else "--"
+        ST = self.metric_labels['st_segment'].text().split()[0] if 'st_segment' in self.metric_labels else "--"
+
+        # Patient details (replace with actual data if available)
+        first_name = getattr(self, "username", "Unknown")
+        last_name = ""
+        age = ""
+        height = ""
+        gender = ""
+        weight = ""
+        test_name = "12 Lead ECG"
+        date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        abnormal_report = 'N'
+        text = obstext = qrstext = ""
+        uId = testId = dataId = "NA"
+
+        # --- Save Lead II graph as image ---
+        lead2_img_path = "lead2_graph_temp.png"
+        try:
+            # Set a larger figure size for PDF export
+            fig = self.ecg_canvas.figure
+            orig_size = fig.get_size_inches()
+            fig.set_size_inches(8, 3.5)  # Wider and taller for PDF
+            fig.savefig(lead2_img_path, bbox_inches='tight', dpi=250)
+            fig.set_size_inches(*orig_size)  # Restore original size
+        except Exception as e:
+            print("Error saving Lead II graph image:", e)
+            lead2_img_path = None
+
+        # --- Generate HTML report with graph image ---
+        html = generate_ecg_html_report(
+            HR=HR,
+            PR=float(PR) if PR.replace('.', '', 1).isdigit() else 0,
+            QRS=float(QRS) if QRS.replace('.', '', 1).isdigit() else 0,
+            QT=float(QT) if QT.replace('.', '', 1).isdigit() else 0,
+            QTc=float(QTc) if QTc.replace('.', '', 1).isdigit() else 0,
+            ST=float(ST) if ST.replace('.', '', 1).isdigit() else 0,
+            test_name=test_name,
+            date_time=date_time,
+            first_name=first_name,
+            last_name=last_name,
+            age=age,
+            height=height,
+            gender=gender,
+            weight=weight,
+            abnormal_report=abnormal_report,
+            text=text,
+            obstext=obstext,
+            qrstext=qrstext,
+            uId=uId,
+            testId=testId,
+            dataId=dataId,
+            lead2_img_path=lead2_img_path, # Path to Lead II graph image
+            # Add QRS axis if available
+            QRS_axis=QRS_axis
+        )
+        
+        # Save HTML report
+        with open("ecg_report.html", "w") as f:
+            f.write(html)
+
+        # Ask user where to save PDF
+        path, _ = QFileDialog.getSaveFileName(self, "Save ECG Report as PDF", "", "PDF Files (*.pdf)")
+        if not path:
+            return
+
+        # Convert HTML to PDF using Qt's QTextDocument (no extra dependencies)
+        from PyQt5.QtGui import QTextDocument
+        from PyQt5.QtPrintSupport import QPrinter
+        doc = QTextDocument()
+        doc.setHtml(html)
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(path)
+        doc.print_(printer)
+        QMessageBox.information(self, "Report Generated", f"ECG report saved as PDF:\n{path}")
+
+        # Clean up temp image
+        if lead2_img_path and os.path.exists(lead2_img_path):
+            try:
+                os.remove(lead2_img_path)
+            except Exception:
+                pass
     
     def animate_heartbeat(self):
         # Heartbeat effect: scale up and down in a sine wave pattern

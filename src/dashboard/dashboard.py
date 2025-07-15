@@ -339,6 +339,15 @@ class Dashboard(QWidget):
         main_layout.addWidget(self.page_stack)
         self.setLayout(main_layout)
         self.page_stack.setCurrentWidget(self.dashboard_page)
+
+        # Add a content_frame for ECGMenu to use
+        self.content_frame = QFrame(self)
+        self.content_frame.setStyleSheet("background: transparent; border: none;")
+        main_layout.addWidget(self.content_frame)
+
+        self.setLayout(main_layout)
+        self.page_stack.setCurrentWidget(self.dashboard_page)
+
     def update_ecg(self, frame):
         import os, json
         lead_ii_file = 'lead_ii_live.json'

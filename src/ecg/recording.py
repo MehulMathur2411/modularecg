@@ -1067,8 +1067,17 @@ class ECGMenu(QGroupBox):
             if key_input.text().strip() == "":
                 key_input.setText("0-999999")
                 key_input.setStyleSheet("font: 12pt Arial; color: gray;")
-        key_input.focusInEvent = lambda event: (on_entry_click(), QLineEdit.focusInEvent(key_input, event))
-        key_input.focusOutEvent = lambda event: (on_focus_out(), QLineEdit.focusOutEvent(key_input, event))
+
+        def focus_in_event(event):
+            on_entry_click()
+            QLineEdit.focusInEvent(key_input, event)
+
+        def focus_out_event(event):
+            on_focus_out()
+            QLineEdit.focusOutEvent(key_input, event)
+
+        key_input.focusInEvent = focus_in_event
+        key_input.focusOutEvent = focus_out_event
 
         container_layout.addWidget(form)
 
@@ -1128,7 +1137,14 @@ class ECGMenu(QGroupBox):
         btn_yes = QPushButton("Yes - Exit")
         btn_yes.setStyleSheet("font: 12pt Arial; background-color: red; color: white;")
         btn_yes.setFixedWidth(200)
-        btn_yes.clicked.connect(lambda: (dialog.accept(), QApplication.instance().quit()))
+
+        def handle_exit():
+            dialog.accept()
+            if self.dashboard and hasattr(self.dashboard, "go_to_dashboard"):
+                self.dashboard.go_to_dashboard()
+            # Do NOT close or hide the ECG widget here!
+
+        btn_yes.clicked.connect(handle_exit)
         layout.addWidget(btn_yes, alignment=Qt.AlignCenter)
 
         btn_no = QPushButton("No - Back")

@@ -271,7 +271,7 @@ class ECGTestPage(QWidget):
         # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
 
         # --- Add menu using ECGMenu ---
-        self.menu = ECGMenu()
+        self.menu = ECGMenu(parent=self, dashboard=self.stacked_widget.parent())
         self.menu.on_save_ecg = self.show_save_ecg
         self.menu.on_open_ecg = self.show_open_ecg
         self.menu.on_working_mode = self.show_working_mode

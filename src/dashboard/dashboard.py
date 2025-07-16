@@ -57,6 +57,10 @@ class SignInDialog(QDialog):
         layout.addWidget(self.signin_btn)
     def get_user_info(self):
         return self.role_combo.currentText(), self.name_edit.text()
+    
+class DashboardHomeWidget(QWidget):
+    def __init__(self):
+        super().__init__()
 
 class Dashboard(QWidget):
     def __init__(self, username=None, role=None):
@@ -80,7 +84,7 @@ class Dashboard(QWidget):
         # --- Central stacked widget for in-place navigation ---
         self.page_stack = QStackedWidget(self)
         # --- Dashboard main page widget ---
-        self.dashboard_page = QWidget()
+        self.dashboard_page = DashboardHomeWidget()
         dashboard_layout = QVBoxLayout(self.dashboard_page)
         dashboard_layout.setSpacing(20)
         dashboard_layout.setContentsMargins(20, 20, 20, 20)

@@ -82,6 +82,68 @@ class LiveLeadWindow(QWidget):
             self.line.set_ydata(plot_data)
             self.canvas.draw_idle()
 
+# ------------------------ Calculate QRS axis ------------------------
+
+def calculate_qrs_axis(lead_I, lead_aVF, r_peaks, fs=500, window_ms=100):
+    """
+    Calculate QRS axis using net area of QRS complex around R peaks.
+    - lead_I, lead_aVF: arrays of samples
+    - r_peaks: indices of R peaks
+    - fs: sampling rate
+    - window_ms: window size around R peak (default 100 ms)
+    """
+    if len(lead_I) < 100 or len(lead_aVF) < 100 or len(r_peaks) == 0:
+        return "--"
+    window = int(window_ms * fs / 1000)
+    net_I = []
+    net_aVF = []
+    for r in r_peaks:
+        start = max(0, r - window//2)
+        end = min(len(lead_I), r + window//2)
+        net_I.append(np.sum(lead_I[start:end]))
+        net_aVF.append(np.sum(lead_aVF[start:end]))
+    mean_net_I = np.mean(net_I)
+    mean_net_aVF = np.mean(net_aVF)
+    axis_rad = np.arctan2(mean_net_aVF, mean_net_I)
+    axis_deg = int(np.degrees(axis_rad))
+    return axis_deg
+
+# ------------------------ Calculate ST Segment ------------------------
+
+def calculate_st_segment(lead_signal, r_peaks, fs=500, j_offset_ms=40, st_offset_ms=80):
+    """
+    Calculate mean ST segment amplitude (in mV) at (J-point + st_offset_ms) after R peak.
+    - lead_signal: ECG samples (e.g., Lead II)
+    - r_peaks: indices of R peaks
+    - fs: sampling rate (Hz)
+    - j_offset_ms: ms after R peak to estimate J-point (default 40ms)
+    - st_offset_ms: ms after J-point to measure ST segment (default 80ms)
+    Returns mean ST segment amplitude in mV (float), or '--' if not enough data.
+    """
+    if len(lead_signal) < 100 or len(r_peaks) == 0:
+        return "--"
+    st_values = []
+    j_offset = int(j_offset_ms * fs / 1000)
+    st_offset = int(st_offset_ms * fs / 1000)
+    for r in r_peaks:
+        st_idx = r + j_offset + st_offset
+        if st_idx < len(lead_signal):
+            st_values.append(lead_signal[st_idx])
+    if len(st_values) == 0:
+        return "--"
+    
+    st_value = float(np.mean(st_values))
+    # Interpret as medical term
+    if 80 <= st_value <= 120:
+        return "Isoelectric"
+    elif st_value > 120:
+        return "Elevated"
+    elif st_value < 80:
+        return "Depressed"
+    return str(st_value)
+
+# ------------------------ Calculate Arrhythmia ------------------------
+
 def detect_arrhythmia(heart_rate, qrs_duration, rr_intervals, pr_interval=None, p_peaks=None, r_peaks=None, ecg_signal=None):
     """
     Expanded arrhythmia detection logic for common clinical arrhythmias.
@@ -526,13 +588,22 @@ class ECGTestPage(QWidget):
                     qrs_label.setText(f"{qrs_duration:.1f} ms" if qrs_duration else "-- ms")
                     qtc_label.setText(f"{qtc_interval:.1f} ms" if qtc_interval else "-- ms")
                     
+                    # Calculate QRS axis using Lead I and aVF
+                    lead_I = self.data.get("I", [])
+                    lead_aVF = self.data.get("aVF", [])
+                    qrs_axis = calculate_qrs_axis(lead_I, lead_aVF, r_peaks)
+
+                    # Calculate ST segment using Lead II and r_peaks
+                    lead_ii = self.data.get("II", [])
+                    st_segment = calculate_st_segment(lead_ii, r_peaks, fs=500)
+
                     if hasattr(self, 'dashboard_callback'):
                         self.dashboard_callback({
                             'PR': pr_interval,
                             'QRS': qrs_duration,
                             'QTc': qtc_interval,
-                            'QRS_axis': '--',  # Replace with actual axis if you compute it
-                            'ST': None  # Replace with actual ST segment if you compute it
+                            'QRS_axis': qrs_axis,
+                            'ST': st_segment
                         })
 
                     # --- Arrhythmia detection ---
@@ -621,6 +692,8 @@ class ECGTestPage(QWidget):
         for i, canvas in enumerate(self.canvases):
             canvas.mpl_connect('button_press_event', make_expand_lead(i))
 
+    # ---------------------- Start Button Functionality ----------------------
+
     def start_acquisition(self):
         port = self.port_combo.currentText()
         baud = self.baud_combo.currentText()
@@ -638,6 +711,8 @@ class ECGTestPage(QWidget):
         except Exception as e:
             self.show_connection_warning(str(e))
 
+    # ---------------------- Stop Button Functionality ----------------------
+
     def stop_acquisition(self):
         port = self.port_combo.currentText()
         baud = self.baud_combo.currentText()
@@ -649,31 +724,88 @@ class ECGTestPage(QWidget):
         self.timer.stop()
         if hasattr(self, '_12to1_timer'):
             self._12to1_timer.stop()
-            
+
+        # --- Calculate and update metrics on dashboard ---
         if hasattr(self, 'dashboard_callback'):
             lead2_data = self.data.get("II", [])[-500:]
+            lead_I_data = self.data.get("I", [])[-500:]
+            lead_aVF_data = self.data.get("aVF", [])[-500:]
+            pr_interval = None
+            qrs_duration = None
+            qt_interval = None
+            qtc_interval = None
+            qrs_axis = "--"
+            st_segment = "--"
             if len(lead2_data) > 100:
-                from ecg.ecg_pqrst import detect_pqrst
-                fs = 500
-                peaks = detect_pqrst(np.array(lead2_data), fs=fs)
-                p_peaks = peaks['P']
-                q_peaks = peaks['Q']
-                r_peaks = peaks['R']
-                s_peaks = peaks['S']
-                t_peaks = peaks['T']
-                pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / fs if p_peaks and r_peaks else None
-                qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / fs if q_peaks and s_peaks else None
-                qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / fs if q_peaks and t_peaks else None
-                qtc_interval = qt_interval / np.sqrt(60.0 / 75.0) if qt_interval else None  # Use last HR or estimate
-                qrs_axis = "--"
-                st_segment = (t_peaks[-1] - s_peaks[-1]) * 1000 / fs if s_peaks and t_peaks else None
-                self.dashboard_callback({
-                    'PR': pr_interval,
-                    'QRS': qrs_duration,
-                    'QTc': qtc_interval,
-                    'QRS_axis': qrs_axis,
-                    'ST': st_segment
-                })
+                # Use same detection logic as live
+                from scipy.signal import find_peaks
+                sampling_rate = 500
+                ecg_signal = np.array(lead2_data)
+                centered = ecg_signal - np.mean(ecg_signal)
+                # R peak detection
+                r_peaks, _ = find_peaks(centered, distance=int(0.2 * sampling_rate), prominence=0.6 * np.std(centered))
+                # Q and S: local minima before and after R
+                q_peaks = []
+                s_peaks = []
+                for r in r_peaks:
+                    q_start = max(0, r - int(0.06 * sampling_rate))
+                    q_end = r
+                    if q_end > q_start:
+                        q_idx = np.argmin(centered[q_start:q_end]) + q_start
+                        q_peaks.append(q_idx)
+                    s_start = r
+                    s_end = min(len(centered), r + int(0.06 * sampling_rate))
+                    if s_end > s_start:
+                        s_idx = np.argmin(centered[s_start:s_end]) + s_start
+                        s_peaks.append(s_idx)
+                # P: positive peak before Q (within 0.1-0.2s)
+                p_peaks = []
+                for q in q_peaks:
+                    p_start = max(0, q - int(0.2 * sampling_rate))
+                    p_end = q - int(0.08 * sampling_rate)
+                    if p_end > p_start:
+                        p_candidates, _ = find_peaks(centered[p_start:p_end], prominence=0.1 * np.std(centered))
+                        if len(p_candidates) > 0:
+                            p_peaks.append(p_start + p_candidates[-1])
+                # T: positive peak after S (within 0.1-0.4s)
+                t_peaks = []
+                for s in s_peaks:
+                    t_start = s + int(0.08 * sampling_rate)
+                    t_end = min(len(centered), s + int(0.4 * sampling_rate))
+                    if t_end > t_start:
+                        t_candidates, _ = find_peaks(centered[t_start:t_end], prominence=0.1 * np.std(centered))
+                        if len(t_candidates) > 0:
+                            t_peaks.append(t_start + t_candidates[np.argmax(centered[t_start + t_candidates])])
+                # Calculate intervals
+                if len(r_peaks) > 1:
+                    rr_intervals = np.diff(r_peaks) / sampling_rate  # in seconds
+                    mean_rr = np.mean(rr_intervals)
+                    heart_rate = 60.0 / mean_rr if mean_rr > 0 else None
+                else:
+                    rr_intervals = None
+                    heart_rate = None
+                if len(p_peaks) > 0 and len(r_peaks) > 0:
+                    pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / sampling_rate  # ms
+                if len(q_peaks) > 0 and len(s_peaks) > 0:
+                    qrs_duration = (s_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
+                if len(q_peaks) > 0 and len(t_peaks) > 0:
+                    qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
+                if qt_interval and heart_rate:
+                    qtc_interval = qt_interval / np.sqrt(60.0 / heart_rate)  # Bazett's formula
+
+                # QRS axis
+                qrs_axis = calculate_qrs_axis(lead_I_data, lead_aVF_data, r_peaks)
+
+                # ST segment
+                st_segment = calculate_st_segment(lead2_data, r_peaks, fs=sampling_rate)
+
+            self.dashboard_callback({
+                'PR': pr_interval,
+                'QRS': qrs_duration,
+                'QTc': qtc_interval,
+                'QRS_axis': qrs_axis,
+                'ST': st_segment
+            })
 
     def update_plot(self):
         if not self.serial_reader:

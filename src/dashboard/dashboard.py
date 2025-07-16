@@ -377,15 +377,15 @@ class Dashboard(QWidget):
     
     def update_ecg_metrics(self, intervals):
         if 'PR' in intervals and intervals['PR'] is not None:
-            self.metric_labels['pr_interval'].setText(f"{intervals['PR']:.1f} ms")
+            self.metric_labels['pr_interval'].setText(f"{intervals['PR']:.1f} ms" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR']))
         if 'QRS' in intervals and intervals['QRS'] is not None:
-            self.metric_labels['qrs_duration'].setText(f"{intervals['QRS']:.1f} ms")
+            self.metric_labels['qrs_duration'].setText(f"{intervals['QRS']:.1f} ms" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS']))
         if 'QTc' in intervals and intervals['QTc'] is not None:
-            self.metric_labels['qtc_interval'].setText(f"{intervals['QTc']:.1f} ms")
+            self.metric_labels['qtc_interval'].setText(f"{intervals['QTc']:.1f} ms" if isinstance(intervals['QTc'], (int, float)) else str(intervals['QTc']))
         if 'QRS_axis' in intervals and intervals['QRS_axis'] is not None:
             self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
         if 'ST' in intervals and intervals['ST'] is not None:
-            self.metric_labels['st_segment'].setText(f"{intervals['ST']:.1f} ms")
+            self.metric_labels['st_segment'].setText(f"{intervals['ST']:.1f} ms" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST']))
             
     def generate_pdf_report(self):
         from PyQt5.QtWidgets import QFileDialog, QMessageBox
@@ -464,7 +464,7 @@ class Dashboard(QWidget):
         if not path:
             return
 
-        # Convert HTML to PDF using Qt's QTextDocument (no extra dependencies)
+        # Convert HTML to PDF using Qt's QTextDocument
         from PyQt5.QtGui import QTextDocument
         from PyQt5.QtPrintSupport import QPrinter
         doc = QTextDocument()

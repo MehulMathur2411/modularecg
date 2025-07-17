@@ -301,12 +301,12 @@ class Dashboard(QWidget):
         # Store metric labels for live update
         self.metric_labels = {}
         metric_info = [
-            ("Heart Rate", "76", "bpm", "heart_rate"),
-            ("PR Interval", "160", "ms", "pr_interval"),
-            ("QRS Duration", "90", "ms", "qrs_duration"),
-            ("QTc Interval", "410", "ms", "qtc_interval"),
-            ("QRS Axis", "+60", "°", "qrs_axis"),
-            ("ST Segment", "Normal", "", "st_segment"),
+            ("Heart Rate", "--", "bpm", "heart_rate"),
+            ("PR Interval", "--", "ms", "pr_interval"),
+            ("QRS Duration", "--", "ms", "qrs_duration"),
+            ("QTc Interval", "--", "ms", "qtc_interval"),
+            ("QRS Axis", "--", "°", "qrs_axis"),
+            ("ST Segment", "--", "", "st_segment"),
         ]
         for title, value, unit, key in metric_info:
             box = QVBoxLayout()
@@ -376,16 +376,29 @@ class Dashboard(QWidget):
         return [self.ecg_line]
     
     def update_ecg_metrics(self, intervals):
+        if 'Heart_Rate' in intervals and intervals['Heart_Rate'] is not None:
+            self.metric_labels['heart_rate'].setText(
+                f"{int(round(intervals['Heart_Rate']))} bpm" if isinstance(intervals['Heart_Rate'], (int, float)) else str(intervals['Heart_Rate'])
+            )
         if 'PR' in intervals and intervals['PR'] is not None:
-            self.metric_labels['pr_interval'].setText(f"{intervals['PR']:.1f} ms" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR']))
+            self.metric_labels['pr_interval'].setText(
+                f"{int(round(intervals['PR']))} ms" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR'])
+            )
         if 'QRS' in intervals and intervals['QRS'] is not None:
-            self.metric_labels['qrs_duration'].setText(f"{intervals['QRS']:.1f} ms" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS']))
+            self.metric_labels['qrs_duration'].setText(
+                f"{int(round(intervals['QRS']))} ms" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS'])
+            )
         if 'QTc' in intervals and intervals['QTc'] is not None:
-            self.metric_labels['qtc_interval'].setText(f"{intervals['QTc']:.1f} ms" if isinstance(intervals['QTc'], (int, float)) else str(intervals['QTc']))
+            if isinstance(intervals['QTc'], (int, float)) and intervals['QTc'] >= 0:
+                self.metric_labels['qtc_interval'].setText(f"{int(round(intervals['QTc']))} ms")
+            else:
+                self.metric_labels['qtc_interval'].setText("-- ms")
         if 'QRS_axis' in intervals and intervals['QRS_axis'] is not None:
             self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
         if 'ST' in intervals and intervals['ST'] is not None:
-            self.metric_labels['st_segment'].setText(f"{intervals['ST']:.1f} ms" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST']))
+            self.metric_labels['st_segment'].setText(
+                f"{int(round(intervals['ST']))} ms" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST'])
+            )
             
     def generate_pdf_report(self):
         from PyQt5.QtWidgets import QFileDialog, QMessageBox

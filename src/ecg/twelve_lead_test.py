@@ -510,7 +510,7 @@ class ECGTestPage(QWidget):
                 if lead == "II":
                     # Use the same detection logic as in main.py
                     from scipy.signal import find_peaks
-                    sampling_rate = 500
+                    sampling_rate = 80
                     ecg_signal = centered
                     window_size = min(500, len(ecg_signal))
                     if len(ecg_signal) > window_size:
@@ -574,7 +574,7 @@ class ECGTestPage(QWidget):
                         rr_intervals = np.diff(r_peaks) / sampling_rate  # in seconds
                         mean_rr = np.mean(rr_intervals)
                         if mean_rr > 0:
-                            heart_rate = 60.0 / mean_rr
+                            heart_rate = 60 / mean_rr
                     if len(p_peaks) > 0 and len(r_peaks) > 0:
                         pr_interval = (r_peaks[-1] - p_peaks[-1]) * 1000 / sampling_rate  # ms
                     if len(q_peaks) > 0 and len(s_peaks) > 0:
@@ -582,11 +582,24 @@ class ECGTestPage(QWidget):
                     if len(q_peaks) > 0 and len(t_peaks) > 0:
                         qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
                     if qt_interval and heart_rate:
-                        qtc_interval = qt_interval / np.sqrt(60.0 / heart_rate)  # Bazett's formula
+                        qtc_interval = qt_interval / np.sqrt(60 / heart_rate)  # Bazett's formula
 
-                    pr_label.setText(f"{pr_interval:.1f} ms" if pr_interval else "-- ms")
-                    qrs_label.setText(f"{qrs_duration:.1f} ms" if qrs_duration else "-- ms")
-                    qtc_label.setText(f"{qtc_interval:.1f} ms" if qtc_interval else "-- ms")
+                    # Update ECG metrics labels with calculated values for Lead2 graph
+
+                    if isinstance(pr_interval, (int, float)):
+                        pr_label.setText(f"{int(round(pr_interval))} ms")
+                    else:
+                        pr_label.setText("-- ms")
+
+                    if isinstance(qrs_duration, (int, float)):
+                        qrs_label.setText(f"{int(round(qrs_duration))} ms")
+                    else:
+                        qrs_label.setText("-- ms")
+
+                    if isinstance(qtc_interval, (int, float)) and qtc_interval >= 0:
+                        qtc_label.setText(f"{int(round(qtc_interval))} ms")
+                    else:
+                        qtc_label.setText("-- ms")
                     
                     # Calculate QRS axis using Lead I and aVF
                     lead_I = self.data.get("I", [])
@@ -599,6 +612,7 @@ class ECGTestPage(QWidget):
 
                     if hasattr(self, 'dashboard_callback'):
                         self.dashboard_callback({
+                            'Heart_Rate': heart_rate,
                             'PR': pr_interval,
                             'QRS': qrs_duration,
                             'QTc': qtc_interval,
@@ -730,6 +744,7 @@ class ECGTestPage(QWidget):
             lead2_data = self.data.get("II", [])[-500:]
             lead_I_data = self.data.get("I", [])[-500:]
             lead_aVF_data = self.data.get("aVF", [])[-500:]
+            heart_rate = None
             pr_interval = None
             qrs_duration = None
             qt_interval = None
@@ -780,7 +795,7 @@ class ECGTestPage(QWidget):
                 if len(r_peaks) > 1:
                     rr_intervals = np.diff(r_peaks) / sampling_rate  # in seconds
                     mean_rr = np.mean(rr_intervals)
-                    heart_rate = 60.0 / mean_rr if mean_rr > 0 else None
+                    heart_rate = 60 / mean_rr if mean_rr > 0 else None
                 else:
                     rr_intervals = None
                     heart_rate = None
@@ -791,7 +806,7 @@ class ECGTestPage(QWidget):
                 if len(q_peaks) > 0 and len(t_peaks) > 0:
                     qt_interval = (t_peaks[-1] - q_peaks[-1]) * 1000 / sampling_rate  # ms
                 if qt_interval and heart_rate:
-                    qtc_interval = qt_interval / np.sqrt(60.0 / heart_rate)  # Bazett's formula
+                    qtc_interval = qt_interval / np.sqrt(60 / heart_rate)  # Bazett's formula
 
                 # QRS axis
                 qrs_axis = calculate_qrs_axis(lead_I_data, lead_aVF_data, r_peaks)
@@ -800,6 +815,7 @@ class ECGTestPage(QWidget):
                 st_segment = calculate_st_segment(lead2_data, r_peaks, fs=sampling_rate)
 
             self.dashboard_callback({
+                'Heart Rate': heart_rate,
                 'PR': pr_interval,
                 'QRS': qrs_duration,
                 'QTc': qtc_interval,

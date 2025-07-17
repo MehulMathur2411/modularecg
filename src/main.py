@@ -393,7 +393,7 @@ def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500, arrhythmia_result=Non
         rr_intervals = np.diff(r_peaks) / sampling_rate  # in seconds
         mean_rr = np.mean(rr_intervals)
         if mean_rr > 0:
-            heart_rate = 60.0 / mean_rr
+            heart_rate = 60 / mean_rr
     # Optionally calculate intervals (not shown on plot)
     if len(r_peaks) > 0:
         pr_interval = '--'
@@ -408,7 +408,7 @@ def plot_ecg_with_peaks(ax, ecg_signal, sampling_rate=500, arrhythmia_result=Non
         f"QTc Interval: {qtc_interval if qtc_interval else '--'}",
         f"QRS Axis: {qrs_axis}",
         f"ST Segment: {st_segment}",
-        f"Heart Rate: {heart_rate:.1f} bpm" if heart_rate else "Heart Rate: --"
+        f"Heart Rate: {heart_rate} bpm" if heart_rate else "Heart Rate: --"
     ]
     # Modern, clean info box
     y0 = np.min(ecg_signal) + 0.05 * (np.max(ecg_signal) - np.min(ecg_signal))

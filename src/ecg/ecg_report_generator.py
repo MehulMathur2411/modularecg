@@ -3,11 +3,24 @@ import os
 def generate_ecg_html_report(
     HR, PR, QRS, QT, QTc, ST,
     test_name, date_time,
-    first_name, last_name, age, height, gender, weight,
+    first_name, last_name, age, gender,
     abnormal_report, text, obstext, qrstext,
     uId, testId, dataId,
-    lead2_img_path=None,
-    QRS_axis=None
+    lead_img_paths = {
+        "I": "lead_I.png",
+        "II": "lead_II.png",
+        "III": "lead_III.png",
+        "aVR": "lead_aVR.png",
+        "aVL": "lead_aVL.png",
+        "aVF": "lead_aVF.png",
+        "V1": "lead_V1.png",
+        "V2": "lead_V2.png",
+        "V3": "lead_V3.png",
+        "V4": "lead_V4.png",
+        "V5": "lead_V5.png",
+        "V6": "lead_V6.png"
+    },
+    QRS_axis = None
 ):
     def to_float(val):
         try:
@@ -22,91 +35,122 @@ def generate_ecg_html_report(
     QTc = to_float(QTc)
     ST = to_float(ST)
 
-    html = """
+    # --- HTML HEADER ---
+    html = f"""
     <html>
     <head>
     <style>
         body {{
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
             background: #f7f7f7;
-            color: #000;
+            color: #222;
             margin: 0;
             padding: 0;
         }}
         .header-bar {{
-            background: linear-gradient(90deg, #ff6600 0%, #ffb347 100%);
-            color: #000;
-            padding: 24px 0 16px 0;
+            background: linear-gradient(90deg, #2453ff 0%, #ff6600 100%);
+            color: #222;
+            padding: 32px 0 18px 0;
             text-align: center;
-            border-radius: 0 0 24px 24px;
-            box-shadow: 0 2px 12px #ff660044;
+            border-radius: 0 0 32px 32px;
+            box-shadow: 0 2px 16px #2453ff44;
         }}
         .header-bar h1 {{
-            color: #000;
+            color: #222;
             margin: 0;
-            font-size: 2.2em;
+            font-size: 2.6em;
             letter-spacing: 2px;
+            font-weight: bold;
+            text-shadow: 0 2px 12px #0004;
         }}
         .header-bar h3 {{
-            color: #000;
-            margin: 6px 0 0 0;
+            color: #222;
+            margin: 10px 0 0 0;
             font-weight: normal;
-            font-size: 1.1em;
+            font-size: 1.2em;
+            text-shadow: 0 1px 6px #0002;
         }}
-        .section {{
-            background: #fff;
-            margin: 32px auto 0 auto;
-            border-radius: 18px;
-            box-shadow: 0 2px 16px #ff660022;
-            max-width: 800px;
-            padding: 32px 40px 32px 40px;
+        .first-section {{
+            background: linear-gradient(120deg, #eaf0ff 0%, #fffbe7 100%);
+            margin: 36px auto 0 auto;
+            border-radius: 24px;
+            box-shadow: 0 2px 24px #2453ff22;
+            max-width: 820px;
+            padding: 38px 48px 38px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }}
         .section-title {{
-            color: #ff6600;
-            font-size: 1.3em;
+            color: #2453ff;
+            font-size: 1.5em;
             font-weight: bold;
-            margin-bottom: 18px;
-            border-bottom: 2px solid #ffb347;
-            padding-bottom: 6px;
+            margin-bottom: 22px;
+            border-bottom: 2px solid #ff6600;
+            padding-bottom: 8px;
+            width: 100%;
+            text-align: left;
         }}
-        .patient-info {{
-            margin-bottom: 18px;
-            font-size: 1.1em;
-        }}
-        .patient-info td {{
-            padding: 6px 18px 6px 0;
-        }}
-        .metrics-table {{
+        .patient-table, .metrics-table {{
             width: 100%;
             border-collapse: collapse;
-            margin: 18px 0 24px 0;
+            margin: 0 0 28px 0;
+            font-size: 1.13em;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 8px #2453ff11;
+        }}
+        .patient-table th, .metrics-table th {{
+            background: #2453ff;
+            color: #fff;
+            padding: 12px 10px;
+            font-weight: bold;
             font-size: 1.08em;
         }}
-        .metrics-table th {{
-            background: #ff6600;
-            color: #fff;
-            padding: 10px 8px;
-            font-weight: bold;
-            border-radius: 6px 6px 0 0;
-        }}
-        .metrics-table td {{
-            padding: 10px 8px;
+        .patient-table td, .metrics-table td {{
+            padding: 12px 10px;
             border-bottom: 1px solid #eee;
+            text-align: center;
+        }}
+        .patient-table tr:last-child td, .metrics-table tr:last-child td {{
+            border-bottom: none;
         }}
         .metrics-table tr:nth-child(even) {{
-            background: #fff7f0;
+            background: #f7faff;
         }}
         .metrics-table tr:nth-child(odd) {{
             background: #fff;
         }}
+        .page-break {{
+            page-break-after: always;
+        }}
+        .lead-block {{
+            margin: 0 auto 20px auto;
+            max-width: 700px;
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 2px 12px #ff660022;
+            padding: 18px 18px 18px 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }}
+        .lead-label {{
+            text-align: center;
+            font-weight: bold;
+            color: #2453ff;
+            margin-bottom: 3px;
+            font-size: 1.1em;
+        }}
         .lead-img {{
-            display: block;
-            margin: 24px auto 18px auto;
             border: 2.5px solid #2453ff;
             border-radius: 12px;
             background: #fff;
             max-width: 95%;
             max-height: 320px;
+            margin: 0 auto 0 auto;
+            display: block;
         }}
         .conclusion, .recommendations {{
             margin-top: 18px;
@@ -135,27 +179,22 @@ def generate_ecg_html_report(
             <h1>{test_name}</h1>
             <h3>Date: {date_time}</h3>
         </div>
-        ...
-""".format(
-    test_name=test_name,
-    date_time=date_time,
-    first_name=first_name,
-    last_name=last_name,
-    age=age,
-    height=height,
-    gender=gender,
-    weight=weight
-)
-
-    # ECG image
-    if lead2_img_path and os.path.exists(lead2_img_path):
-        html += f"<img src='{lead2_img_path}' class='lead-img' alt='Lead II Graph' width='500' height='250'>"
-    else:
-        graphLink = f"graphPage.php?uid={uId}&test_id={testId}&dataId={dataId}"
-        html += f"<img src='{graphLink}' class='lead-img' alt='Lead II Graph' width='500' height='250'>"
-
-    # Metrics Table
-    html += """
+        <div class="first-section">
+            <div class="section-title">Patient Details</div>
+            <table class="patient-table">
+                <tr>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Age</th>
+                    <th>Gender</th>
+                </tr>
+                <tr>
+                    <td>{first_name}</td>
+                    <td>{last_name}</td>
+                    <td>{age}</td>
+                    <td>{gender}</td>
+                </tr>
+            </table>
             <div class="section-title">Observed Values</div>
             <table class="metrics-table">
                 <tr>
@@ -169,92 +208,50 @@ def generate_ecg_html_report(
                 <tr><td>QT Interval</td><td>{QT} ms</td><td>300 - 450 ms</td></tr>
                 <tr><td>QTc Interval</td><td>{QTc} ms</td><td>300 - 450 ms</td></tr>
                 <tr><td>ST Segment</td><td>{ST} ms</td><td>80 - 120 ms</td></tr>
-                <tr><td>QRS Axis</td><td>{QRS_axis}</td><td>Typically -30° to +90°</td></tr>
+                <tr><td>QRS Axis</td><td>{'Not Available' if QRS_axis is None else QRS_axis}</td><td>Typically -30° to +90°</td></tr>
             </table>
-    """.format(
-        HR=HR, PR=PR, QRS=QRS, QT=QT, QTc=QTc, ST=ST,
-        QRS_axis='Not Available' if QRS_axis is None else QRS_axis
-    )
-
-    # Conclusion Section
-    html += """
-            <div class="conclusion">
-                <div class="conclusion-title">Conclusion</div>
+        </div>
+        <div class="page-break"></div>
     """
 
-    if abnormal_report == 'N':
-        # Heart rate
-        if 60 <= HR <= 100:
-            html += "<div>1. Heart rate is normal.</div>"
-        else:
-            html += "<div style='color: red;'>1. Heart rate is abnormal.</div>"
+    # --- 12 LEAD GRAPHS, 2 PER PAGE ---
+    lead_order = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+    if lead_img_paths:
+        for i in range(0, len(lead_order), 2):
+            html += '<div style="display: flex; flex-direction: column; align-items: center;">'
+            for j in range(2):
+                if i + j < len(lead_order):
+                    lead = lead_order[i + j]
+                    img_path = lead_img_paths.get(lead)
+                    if img_path and os.path.exists(img_path):
+                        html += f"""
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">{lead}</div>
+                            <img src="{img_path}" class="lead-img" alt="{lead} Graph" height="200" width="500">
+                        </div>
+                        """
+            html += '</div>'
+            html += '<div class="page-break"></div>'
 
-        # PR interval
-        if 120 <= PR <= 200:
-            html += "<div>2. PR interval is normal.</div>"
-        elif PR > 200:
-            html += "<div style='color: red;'>2. PR interval is > 200 ms, first degree heart block is said to be present.</div>"
-        elif PR < 120:
-            html += "<div style='color: red;'>2. PR interval < 120 ms suggests pre-excitation (the presence of an accessory pathway between the atria and ventricles)</div>"
-
-        # QRS
-        if 70 <= QRS <= 100:
-            html += "<div>3. QRS Interval is normal.</div>"
-        elif QRS < 70:
-            html += "<div style='color: red;'>3. Narrow QRS Interval Detected.</div>"
-        elif QRS >= 100:
-            if QRS <= 120:
-                html += "<div>3. QRS interval is abnormal.</div>"
-            if QRS > 120:
-                html += "<div style='color: red;'>3. QRS duration > 120 ms is required for the diagnosis of bundle branch block or ventricular rhythm.</div>"
-
-        # QT
-        if 300 <= QT <= 450:
-            html += "<div>4. QT is normal.</div>"
-        else:
-            html += "<div style='color: red;'>4. QT is abnormal.</div>"
-
-        # QTc
-        if 300 <= QTc <= 450:
-            html += "<div>5. QTc is normal.</div>"
-        elif 450 <= QTc <= 500:
-            html += "<div style='color: red;'>5. QTc is prolonged.</div>"
-        elif QTc > 500:
-            html += "<div style='color: red;'>5. QTc > 500 is associated with an increased risk of torsades de pointes.</div>"
-        elif QTc < 300:
-            html += "<div style='color: red;'>5. QTc is abnormally shorted.</div>"
-
-        # ST
-        if 80 <= ST <= 120:
-            html += "<div>6. ST is normal.</div>"
-        else:
-            html += "<div style='color: red;'>6. ST is abnormal.</div>"
-
-        # Additional text
-        if text:
-            html += f"<div>{text}</div>"
-        if obstext:
-            html += f"<div>{obstext}</div>"
-        if qrstext:
-            html += f"<div>{qrstext}</div>"
-
-    else:
-        html += "<div>Invalid Test. Kindly Reconnect The Device And Try Again..!</div>"
-
-    html += "</div>"
-
-    # Recommendations Section
+    # --- CONCLUSION SECTION (Last Page) ---
     html += """
-            <div class="recommendations">
-                <div class="recommendations-title">Recommendations</div>
-                <ul>
-                    <li>Consult your physician for a detailed diagnosis.</li>
-                    <li>Repeat ECG if symptoms persist or worsen.</li>
-                    <li>Maintain a healthy lifestyle and regular checkups.</li>
-                </ul>
-            </div>
-            <div class="disclaimer">
-                Disclaimer: This ECG report is an interpretation of electrical parameters and may vary over time. <b>PLEASE CONSULT YOUR PHYSICIAN FOR DIAGNOSIS.</b>
+        <div class="section">
+            <div class="conclusion">
+                <div class="conclusion-title">Conclusion</div>
+                <div>
+                    This ECG report is generated automatically. Please consult your physician for a detailed diagnosis.
+                </div>
+                <div class="recommendations">
+                    <div class="recommendations-title">Recommendations</div>
+                    <ul>
+                        <li>Consult your physician for a detailed diagnosis.</li>
+                        <li>Repeat ECG if symptoms persist or worsen.</li>
+                        <li>Maintain a healthy lifestyle and regular checkups.</li>
+                    </ul>
+                </div>
+                <div class="disclaimer">
+                    Disclaimer: This ECG report is an interpretation of electrical parameters and may vary over time. <b>PLEASE CONSULT YOUR PHYSICIAN FOR DIAGNOSIS.</b>
+                </div>
             </div>
         </div>
     </body>

@@ -12,6 +12,7 @@ from matplotlib.animation import FuncAnimation
 import math
 import os
 import json
+import matplotlib.image as mpimg
 
 class MplCanvas(FigureCanvas):
     def __init__(self, width=4, height=2, dpi=100):
@@ -415,30 +416,44 @@ class Dashboard(QWidget):
         ST = self.metric_labels['st_segment'].text().split()[0] if 'st_segment' in self.metric_labels else "--"
 
         # Patient details (replace with actual data if available)
-        first_name = getattr(self, "username", "Unknown")
-        last_name = ""
-        age = ""
-        height = ""
-        gender = ""
-        weight = ""
+        first_name = getattr(self, "first_name", "")
+        last_name = getattr(self, "last_name", "")
+        age = getattr(self, "age", "")
+        gender = getattr(self, "gender", "")
         test_name = "12 Lead ECG"
         date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         abnormal_report = 'N'
         text = obstext = qrstext = ""
         uId = testId = dataId = "NA"
 
-        # --- Save Lead II graph as image ---
-        lead2_img_path = "lead2_graph_temp.png"
-        try:
-            # Set a larger figure size for PDF export
-            fig = self.ecg_canvas.figure
-            orig_size = fig.get_size_inches()
-            fig.set_size_inches(8, 3.5)  # Wider and taller for PDF
-            fig.savefig(lead2_img_path, bbox_inches='tight', dpi=250)
-            fig.set_size_inches(*orig_size)  # Restore original size
-        except Exception as e:
-            print("Error saving Lead II graph image:", e)
-            lead2_img_path = None
+        # --- Save all lead graphs as image ---
+        lead_img_paths = {}
+        ordered_leads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+
+        # Get ECGTestPage instance and its figures
+
+        bg_img_path = "ecg_bgimg.png" # Path to background image
+
+        ecg_test_page = self.ecg_test_page
+        for lead in ordered_leads:
+            fig = ecg_test_page.get_lead_figure(lead)  # You may need to implement get_lead_figure
+            if fig:
+                ax = fig.axes[0]  # Get the main axes
+                # Hide axis ticks and labels
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_xlabel("")
+                ax.set_ylabel("")
+                # Add background image ONLY for PDF export
+                if os.path.exists(bg_img_path):
+                    img = mpimg.imread(bg_img_path)
+                    ax.imshow(img, aspect='auto', extent=ax.get_xlim() + ax.get_ylim(), zorder=0)
+                img_path = f"lead_{lead}.png"
+                fig.savefig(img_path, bbox_inches='tight', dpi=250)
+                lead_img_paths[lead] = img_path
+                # Remove the background image so it doesn't affect UI
+                for img in list(ax.images):
+                    img.remove()
 
         # --- Generate HTML report with graph image ---
         html = generate_ecg_html_report(
@@ -453,9 +468,7 @@ class Dashboard(QWidget):
             first_name=first_name,
             last_name=last_name,
             age=age,
-            height=height,
             gender=gender,
-            weight=weight,
             abnormal_report=abnormal_report,
             text=text,
             obstext=obstext,
@@ -463,8 +476,7 @@ class Dashboard(QWidget):
             uId=uId,
             testId=testId,
             dataId=dataId,
-            lead2_img_path=lead2_img_path, # Path to Lead II graph image
-            # Add QRS axis if available
+            lead_img_paths=lead_img_paths,   # <-- Pass all 12 leads here
             QRS_axis=QRS_axis
         )
         
@@ -489,12 +501,13 @@ class Dashboard(QWidget):
         QMessageBox.information(self, "Report Generated", f"ECG report saved as PDF:\n{path}")
 
         # Clean up temp image
-        if lead2_img_path and os.path.exists(lead2_img_path):
-            try:
-                os.remove(lead2_img_path)
-            except Exception:
-                pass
-    
+        for img_path in lead_img_paths.values():
+            if img_path and os.path.exists(img_path):
+                try:
+                    os.remove(img_path)
+                except Exception:
+                    pass
+
     def animate_heartbeat(self):
         # Heartbeat effect: scale up and down in a sine wave pattern
         beat = 1 + 0.13 * math.sin(self.heartbeat_phase) + 0.07 * math.sin(2 * self.heartbeat_phase)

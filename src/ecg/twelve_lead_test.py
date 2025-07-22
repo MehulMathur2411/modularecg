@@ -350,6 +350,20 @@ class ECGTestPage(QWidget):
         main_hbox.addLayout(main_vbox)
         self.grid_widget.setLayout(main_hbox)
 
+    # ------------------------ Get lead figure in pdf ------------------------
+
+    def get_lead_figure(self, lead):
+        if hasattr(self, "lead_figures"):
+            return self.lead_figures.get(lead)
+        
+        ordered_leads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+        if hasattr(self, "figures"):
+            if lead in ordered_leads:
+                idx = ordered_leads.index(lead)
+                if idx < len(self.figures):
+                    return self.figures[idx]
+        return None
+
     def center_on_screen(self):
         qr = self.frameGeometry()
         from PyQt5.QtWidgets import QApplication

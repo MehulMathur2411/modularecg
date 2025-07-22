@@ -1,0 +1,4 @@
+DM, Rat, Technologia, 23, Female
+DM, Rat, ptr, 20, Male
+DM, Rat, PTR, 20, Male
+DM, Rat, Indresh singh, 20, Male

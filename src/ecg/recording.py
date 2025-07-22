@@ -241,6 +241,19 @@ class ECGMenu(QGroupBox):
             try:
                 with open("ecg_data.txt", "a") as file:
                     file.write(f"{values['Organisation']}, {values['Doctor']}, {values['Patient Name']}, {values['Age']}, {values['Gender']}\n")
+
+                # --- Store Patient info in Dashboard for PDF report ---
+                if self.dashboard:
+                    # Split patient name into first and last if possible
+                    patient_name = values['Patient Name']
+                    name_parts = patient_name.split()
+                    first_name = name_parts[0] if len(name_parts) > 0 else ""
+                    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                    self.dashboard.first_name = first_name
+                    self.dashboard.last_name = last_name
+                    self.dashboard.age = values['Age']
+                    self.dashboard.gender = values['Gender']
+
                 QMessageBox.information(dialog, "Saved", "Details saved to ecg_data.txt successfully.")
                 dialog.accept()
             except Exception as e:

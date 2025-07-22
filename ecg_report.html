@@ -3,86 +3,116 @@
     <head>
     <style>
         body {
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
             background: #f7f7f7;
-            color: #000;
+            color: #222;
             margin: 0;
             padding: 0;
         }
         .header-bar {
-            background: linear-gradient(90deg, #ff6600 0%, #ffb347 100%);
-            color: #000;
-            padding: 24px 0 16px 0;
+            background: linear-gradient(90deg, #2453ff 0%, #ff6600 100%);
+            color: #222;
+            padding: 32px 0 18px 0;
             text-align: center;
-            border-radius: 0 0 24px 24px;
-            box-shadow: 0 2px 12px #ff660044;
+            border-radius: 0 0 32px 32px;
+            box-shadow: 0 2px 16px #2453ff44;
         }
         .header-bar h1 {
-            color: #000;
+            color: #222;
             margin: 0;
-            font-size: 2.2em;
+            font-size: 2.6em;
             letter-spacing: 2px;
+            font-weight: bold;
+            text-shadow: 0 2px 12px #0004;
         }
         .header-bar h3 {
-            color: #000;
-            margin: 6px 0 0 0;
+            color: #222;
+            margin: 10px 0 0 0;
             font-weight: normal;
-            font-size: 1.1em;
+            font-size: 1.2em;
+            text-shadow: 0 1px 6px #0002;
         }
-        .section {
-            background: #fff;
-            margin: 32px auto 0 auto;
-            border-radius: 18px;
-            box-shadow: 0 2px 16px #ff660022;
-            max-width: 800px;
-            padding: 32px 40px 32px 40px;
+        .first-section {
+            background: linear-gradient(120deg, #eaf0ff 0%, #fffbe7 100%);
+            margin: 36px auto 0 auto;
+            border-radius: 24px;
+            box-shadow: 0 2px 24px #2453ff22;
+            max-width: 820px;
+            padding: 38px 48px 38px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         .section-title {
-            color: #ff6600;
-            font-size: 1.3em;
+            color: #2453ff;
+            font-size: 1.5em;
             font-weight: bold;
-            margin-bottom: 18px;
-            border-bottom: 2px solid #ffb347;
-            padding-bottom: 6px;
+            margin-bottom: 22px;
+            border-bottom: 2px solid #ff6600;
+            padding-bottom: 8px;
+            width: 100%;
+            text-align: left;
         }
-        .patient-info {
-            margin-bottom: 18px;
-            font-size: 1.1em;
-        }
-        .patient-info td {
-            padding: 6px 18px 6px 0;
-        }
-        .metrics-table {
+        .patient-table, .metrics-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 18px 0 24px 0;
+            margin: 0 0 28px 0;
+            font-size: 1.13em;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 8px #2453ff11;
+        }
+        .patient-table th, .metrics-table th {
+            background: #2453ff;
+            color: #fff;
+            padding: 12px 10px;
+            font-weight: bold;
             font-size: 1.08em;
         }
-        .metrics-table th {
-            background: #ff6600;
-            color: #fff;
-            padding: 10px 8px;
-            font-weight: bold;
-            border-radius: 6px 6px 0 0;
-        }
-        .metrics-table td {
-            padding: 10px 8px;
+        .patient-table td, .metrics-table td {
+            padding: 12px 10px;
             border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+        .patient-table tr:last-child td, .metrics-table tr:last-child td {
+            border-bottom: none;
         }
         .metrics-table tr:nth-child(even) {
-            background: #fff7f0;
+            background: #f7faff;
         }
         .metrics-table tr:nth-child(odd) {
             background: #fff;
         }
+        .page-break {
+            page-break-after: always;
+        }
+        .lead-block {
+            margin: 0 auto 20px auto;
+            max-width: 700px;
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 2px 12px #ff660022;
+            padding: 18px 18px 18px 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .lead-label {
+            text-align: center;
+            font-weight: bold;
+            color: #2453ff;
+            margin-bottom: 3px;
+            font-size: 1.1em;
+        }
         .lead-img {
-            display: block;
-            margin: 24px auto 18px auto;
             border: 2.5px solid #2453ff;
             border-radius: 12px;
             background: #fff;
             max-width: 95%;
             max-height: 320px;
+            margin: 0 auto 0 auto;
+            display: block;
         }
         .conclusion, .recommendations {
             margin-top: 18px;
@@ -109,10 +139,24 @@
     <body>
         <div class="header-bar">
             <h1>12 Lead ECG</h1>
-            <h3>Date: 2025-07-17 12:08</h3>
+            <h3>Date: 2025-07-22 17:12</h3>
         </div>
-        ...
-<img src='lead2_graph_temp.png' class='lead-img' alt='Lead II Graph' width='500' height='250'>
+        <div class="first-section">
+            <div class="section-title">Patient Details</div>
+            <table class="patient-table">
+                <tr>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Age</th>
+                    <th>Gender</th>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+            </table>
             <div class="section-title">Observed Values</div>
             <table class="metrics-table">
                 <tr>
@@ -120,28 +164,94 @@
                     <th>Observed</th>
                     <th>Standard Range</th>
                 </tr>
-                <tr><td>Heart Rate</td><td>76.0 bpm</td><td>60 - 100 bpm</td></tr>
-                <tr><td>PR Interval</td><td>194.0 ms</td><td>120 - 200 ms</td></tr>
-                <tr><td>QRS Complex</td><td>30.0 ms</td><td>70 - 120 ms</td></tr>
+                <tr><td>Heart Rate</td><td>0 bpm</td><td>60 - 100 bpm</td></tr>
+                <tr><td>PR Interval</td><td>0.0 ms</td><td>120 - 200 ms</td></tr>
+                <tr><td>QRS Complex</td><td>0.0 ms</td><td>70 - 120 ms</td></tr>
                 <tr><td>QT Interval</td><td>0.0 ms</td><td>300 - 450 ms</td></tr>
-                <tr><td>QTc Interval</td><td>410.0 ms</td><td>300 - 450 ms</td></tr>
+                <tr><td>QTc Interval</td><td>0.0 ms</td><td>300 - 450 ms</td></tr>
                 <tr><td>ST Segment</td><td>0.0 ms</td><td>80 - 120 ms</td></tr>
-                <tr><td>QRS Axis</td><td>26</td><td>Typically -30° to +90°</td></tr>
+                <tr><td>QRS Axis</td><td>-- °</td><td>Typically -30° to +90°</td></tr>
             </table>
-    
+        </div>
+        <div class="page-break"></div>
+    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">I</div>
+                            <img src="lead_I.png" class="lead-img" alt="I Graph" height="200" width="500">
+                        </div>
+                        
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">II</div>
+                            <img src="lead_II.png" class="lead-img" alt="II Graph" height="200" width="500">
+                        </div>
+                        </div><div class="page-break"></div><div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">III</div>
+                            <img src="lead_III.png" class="lead-img" alt="III Graph" height="200" width="500">
+                        </div>
+                        
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">aVR</div>
+                            <img src="lead_aVR.png" class="lead-img" alt="aVR Graph" height="200" width="500">
+                        </div>
+                        </div><div class="page-break"></div><div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">aVL</div>
+                            <img src="lead_aVL.png" class="lead-img" alt="aVL Graph" height="200" width="500">
+                        </div>
+                        
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">aVF</div>
+                            <img src="lead_aVF.png" class="lead-img" alt="aVF Graph" height="200" width="500">
+                        </div>
+                        </div><div class="page-break"></div><div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">V1</div>
+                            <img src="lead_V1.png" class="lead-img" alt="V1 Graph" height="200" width="500">
+                        </div>
+                        
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">V2</div>
+                            <img src="lead_V2.png" class="lead-img" alt="V2 Graph" height="200" width="500">
+                        </div>
+                        </div><div class="page-break"></div><div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">V3</div>
+                            <img src="lead_V3.png" class="lead-img" alt="V3 Graph" height="200" width="500">
+                        </div>
+                        
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">V4</div>
+                            <img src="lead_V4.png" class="lead-img" alt="V4 Graph" height="200" width="500">
+                        </div>
+                        </div><div class="page-break"></div><div style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">V5</div>
+                            <img src="lead_V5.png" class="lead-img" alt="V5 Graph" height="200" width="500">
+                        </div>
+                        
+                        <div class="lead-block" style="padding-bottom:0;">
+                            <div class="lead-label" style="font-size:1em;">V6</div>
+                            <img src="lead_V6.png" class="lead-img" alt="V6 Graph" height="200" width="500">
+                        </div>
+                        </div><div class="page-break"></div>
+        <div class="section">
             <div class="conclusion">
                 <div class="conclusion-title">Conclusion</div>
-    <div>1. Heart rate is normal.</div><div>2. PR interval is normal.</div><div style='color: red;'>3. Narrow QRS Interval Detected.</div><div style='color: red;'>4. QT is abnormal.</div><div>5. QTc is normal.</div><div style='color: red;'>6. ST is abnormal.</div></div>
-            <div class="recommendations">
-                <div class="recommendations-title">Recommendations</div>
-                <ul>
-                    <li>Consult your physician for a detailed diagnosis.</li>
-                    <li>Repeat ECG if symptoms persist or worsen.</li>
-                    <li>Maintain a healthy lifestyle and regular checkups.</li>
-                </ul>
-            </div>
-            <div class="disclaimer">
-                Disclaimer: This ECG report is an interpretation of electrical parameters and may vary over time. <b>PLEASE CONSULT YOUR PHYSICIAN FOR DIAGNOSIS.</b>
+                <div>
+                    This ECG report is generated automatically. Please consult your physician for a detailed diagnosis.
+                </div>
+                <div class="recommendations">
+                    <div class="recommendations-title">Recommendations</div>
+                    <ul>
+                        <li>Consult your physician for a detailed diagnosis.</li>
+                        <li>Repeat ECG if symptoms persist or worsen.</li>
+                        <li>Maintain a healthy lifestyle and regular checkups.</li>
+                    </ul>
+                </div>
+                <div class="disclaimer">
+                    Disclaimer: This ECG report is an interpretation of electrical parameters and may vary over time. <b>PLEASE CONSULT YOUR PHYSICIAN FOR DIAGNOSIS.</b>
+                </div>
             </div>
         </div>
     </body>

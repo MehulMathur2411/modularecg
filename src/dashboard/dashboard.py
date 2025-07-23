@@ -13,6 +13,7 @@ import math
 import os
 import json
 import matplotlib.image as mpimg
+from dashboard.chatbot_dialog import ChatbotDialog
 
 class MplCanvas(FigureCanvas):
     def __init__(self, width=4, height=2, dpi=100):
@@ -141,7 +142,15 @@ class Dashboard(QWidget):
         date_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 16px; padding: 8px 24px;")
         date_btn.clicked.connect(self.go_to_lead_test)
         greet_row.addWidget(date_btn)
+
+        # --- Add Chatbot Button ---
+        chatbot_btn = QPushButton("AI Chatbot")
+        chatbot_btn.setStyleSheet("background: #2453ff; color: white; border-radius: 16px; padding: 8px 24px;")
+        chatbot_btn.clicked.connect(self.open_chatbot_dialog)
+        greet_row.addWidget(chatbot_btn)
+
         dashboard_layout.addLayout(greet_row)
+
         # --- Main Grid ---
         grid = QGridLayout()
         grid.setSpacing(20)
@@ -153,7 +162,10 @@ class Dashboard(QWidget):
         heart_label.setFont(QFont("Arial", 14, QFont.Bold))
         heart_img = QLabel()
         # Use a portable path for the heart image asset
-        heart_img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "her.png")
+        heart_img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "her.png")
+        heart_img_path = os.path.abspath(heart_img_path)
+        # print(f"Pratyaksh Heart image path: {heart_img_path}")  # Debugging line to check the path
+        # print(f"Pratyaksh Heart image exists: {os.path.exists(heart_img_path)}")  # Check if the file exists
         self.heart_pixmap = QPixmap(heart_img_path)
         self.heart_base_size = 220
         heart_img.setFixedSize(self.heart_base_size + 20, self.heart_base_size + 20)
@@ -352,6 +364,10 @@ class Dashboard(QWidget):
 
         self.setLayout(main_layout)
         self.page_stack.setCurrentWidget(self.dashboard_page)
+
+    def open_chatbot_dialog(self):
+        dlg = ChatbotDialog(self)
+        dlg.exec_()
 
     def update_ecg(self, frame):
         import os, json

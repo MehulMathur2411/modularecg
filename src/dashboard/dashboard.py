@@ -162,11 +162,11 @@ class Dashboard(QWidget):
         heart_label.setFont(QFont("Arial", 14, QFont.Bold))
         heart_img = QLabel()
         # Use a portable path for the heart image asset
-        heart_img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "her.png")
-        heart_img_path = os.path.abspath(heart_img_path)
+        # heart_img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "her.png")
+        # heart_img_path = os.path.abspath(heart_img_path)
         # print(f"Pratyaksh Heart image path: {heart_img_path}")  # Debugging line to check the path
         # print(f"Pratyaksh Heart image exists: {os.path.exists(heart_img_path)}")  # Check if the file exists
-        self.heart_pixmap = QPixmap(heart_img_path)
+        self.heart_pixmap = QPixmap("/Users/deckmount/Pratyaksh1/modularecg/assets/her.png")
         self.heart_base_size = 220
         heart_img.setFixedSize(self.heart_base_size + 20, self.heart_base_size + 20)
         heart_img.setAlignment(Qt.AlignCenter)
@@ -182,24 +182,6 @@ class Dashboard(QWidget):
         self.heartbeat_timer = QTimer(self)
         self.heartbeat_timer.timeout.connect(self.animate_heartbeat)
         self.heartbeat_timer.start(30)  # ~33 FPS
-        # --- Patient Body Analysis Cards ---
-        analysis_card = QFrame()
-        analysis_card.setStyleSheet("background: white; border-radius: 16px;")
-        analysis_layout = QHBoxLayout(analysis_card)
-        for title, value, unit in [
-            ("Glucose Level", "127", "mg/dl"),
-            ("Cholesterol Level", "164", "mg"),
-            ("Paracetamol", "35", "%")
-        ]:
-            box = QVBoxLayout()
-            lbl = QLabel(title)
-            lbl.setFont(QFont("Arial", 10, QFont.Bold))
-            val = QLabel(f"{value} {unit}")
-            val.setFont(QFont("Arial", 16, QFont.Bold))
-            box.addWidget(lbl)
-            box.addWidget(val)
-            analysis_layout.addLayout(box)
-        grid.addWidget(analysis_card, 0, 1, 1, 2)
         # --- ECG Recording (Animated Chart) ---
         ecg_card = QFrame()
         ecg_card.setStyle
@@ -548,6 +530,7 @@ class Dashboard(QWidget):
     def handle_sign_out(self):
         self.user_label.setText("Not signed in")
         self.sign_btn.setText("Sign In")
+        self.close()
     def go_to_lead_test(self):
         self.page_stack.setCurrentWidget(self.ecg_test_page)
     def go_to_dashboard(self):
@@ -591,6 +574,8 @@ class Dashboard(QWidget):
             self.ecg_canvas.figure.set_facecolor("#232323")
             for child in self.findChildren(QFrame):
                 child.setStyleSheet("background: #232323; border-radius: 16px; color: #fff; border: 2px solid #fff;")
+            for key, label in self.metric_labels.items():
+                label.setStyleSheet("color: #fff; background: transparent;")
                 for canvas in child.findChildren(MplCanvas):
                     canvas.axes.set_facecolor("#232323")
                     canvas.figure.set_facecolor("#232323")
@@ -609,6 +594,8 @@ class Dashboard(QWidget):
             self.ecg_canvas.figure.set_facecolor("#fff")
             for child in self.findChildren(QFrame):
                 child.setStyleSheet("")
+            for key, label in self.metric_labels.items():
+                label.setStyleSheet("color: #222; background: transparent;")
                 for canvas in child.findChildren(MplCanvas):
                     canvas.axes.set_facecolor("#fff")
                     canvas.figure.set_facecolor("#fff")
@@ -619,6 +606,7 @@ class Dashboard(QWidget):
                     txt.setStyleSheet("")
             self.layout().setContentsMargins(20, 20, 20, 20)
             self.layout().setSpacing(20)
+        
     def center_on_screen(self):
         qr = self.frameGeometry()
         cp = QApplication.desktop().availableGeometry().center()

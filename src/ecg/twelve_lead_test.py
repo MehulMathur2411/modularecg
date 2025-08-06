@@ -5,9 +5,11 @@ from pyparsing import line
 import serial
 import serial.tools.list_ports
 import csv
+import cv2
+from datetime import datetime
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QGroupBox, QFileDialog,
-    QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit, QFrame
+    QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit, QFrame, QApplication
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QTimer
@@ -15,6 +17,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from ecg.recording import ECGMenu
 from scipy.signal import find_peaks
+from utils.settings_manager import SettingsManager
 
 class SerialECGReader:
     def __init__(self, port, baudrate):
@@ -220,7 +223,7 @@ class ECGTestPage(QWidget):
     }
     LEAD_COLORS = {
         "I": "#00ff99",
-        "II": "#ff0055",
+        "II": "#ff0055", 
         "III": "#0099ff",
         "aVR": "#ff9900",
         "aVL": "#cc00ff",
@@ -239,6 +242,8 @@ class ECGTestPage(QWidget):
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
         self.center_on_screen()
         self.stacked_widget = stacked_widget  # Save reference for navigation
+
+        self.settings_manager = SettingsManager() 
 
         self.grid_widget = QWidget()
         self.detailed_widget = QWidget()
@@ -267,26 +272,220 @@ class ECGTestPage(QWidget):
         main_vbox.addWidget(back_btn, alignment=Qt.AlignLeft)
 
         menu_frame = QGroupBox("Menu")
-        menu_layout = QVBoxLayout(menu_frame)
+
+        menu_frame.setStyleSheet("""
+            QGroupBox {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 2px solid #e9ecef;
+                border-radius: 16px;
+                margin-top: 12px;
+                padding: 16px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                color: #495057;
+                font-size: 16px;
+                font-weight: bold;
+                padding: 8px;
+            }
+        """)
+
+        # Enhanced Menu Panel
+        menu_container = QWidget()
+        menu_container.setFixedWidth(300)
+        menu_container.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border-right: 2px solid #e9ecef;
+            }
+        """)
+
+        # Style menu buttons
+        menu_layout = QVBoxLayout(menu_container)
+        menu_layout.setContentsMargins(20, 20, 20, 20)
+        menu_layout.setSpacing(12)
+        
+        # Header
+        header_label = QLabel("ECG Control Panel")
+        header_label.setStyleSheet("""
+            QLabel {
+                color: #ff6600;
+                font-size: 24px;
+                font-weight: bold;
+                padding: 20px 0;
+                border-bottom: 3px solid #ff6600;
+                margin-bottom: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #fff5f0, stop:1 #ffe0cc);
+                border-radius: 10px;
+            }
+        """)
+        header_label.setAlignment(Qt.AlignCenter)
+        menu_layout.addWidget(header_label)
+
+        # Create ECGMenu instance to use its methods
+        self.ecg_menu = ECGMenu(parent=self, dashboard=self.stacked_widget.parent())
+
+        self.ecg_menu.setVisible(False)
+        self.ecg_menu.hide()
+        
+        if self.ecg_menu.parent():
+            self.ecg_menu.setParent(None)
+
+
         menu_buttons = [
-            ("Save ECG", self.show_save_ecg),
-            ("Open ECG", self.show_open_ecg),
-            ("Working Mode", self.show_working_mode),
-            ("Printer Setup", self.show_printer_setup),
-            ("Set Filter", self.open_filter_settings),
-            ("System Setup", self.show_system_setup),
-            ("Load Default", self.show_factory_default_config),
-            ("Version", self.show_version_info),
-            ("Factory Maintain", self.show_maintain_password),
-            ("12:1 Graph", self.show_12to1_graph),
-            # ("Exit", self.show_exit_page)
+            ("Save ECG", self.ecg_menu.show_save_ecg, "#28a745"),
+            ("Open ECG", self.ecg_menu.open_ecg_window, "#17a2b8"),
+            ("Working Mode", self.ecg_menu.show_working_mode, "#6f42c1"),
+            ("Printer Setup", self.ecg_menu.show_printer_setup, "#fd7e14"),
+            ("Set Filter", self.ecg_menu.set_filter_setup, "#20c997"),
+            ("System Setup", self.ecg_menu.show_system_setup, "#6c757d"),
+            ("Load Default", self.ecg_menu.show_load_default, "#ffc107"),
+            ("Version", self.ecg_menu.show_version_info, "#17a2b8"),
+            ("Factory Maintain", self.ecg_menu.show_factory_maintain, "#dc3545"),
         ]
-        for text, handler in menu_buttons:
+        
+        # Create buttons and store them in a list
+        created_buttons = []
+        for text, handler, color in menu_buttons:
             btn = QPushButton(text)
-            btn.setFixedHeight(36)
+            btn.setFixedHeight(77)
             btn.clicked.connect(handler)
+            created_buttons.append(btn)
             menu_layout.addWidget(btn)
+
         menu_layout.addStretch(1)
+
+        # Style menu buttons AFTER they're created
+        for i, btn in enumerate(created_buttons):
+            color = menu_buttons[i][2]
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #ffffff, stop:1 #f8f9fa);
+                    color: #1a1a1a;
+                    border: 3px solid #e9ecef;
+                    border-radius: 15px;
+                    padding: 20px 30px;
+                    font-size: 18px;
+                    font-weight: bold;
+                    text-align: left;
+                    margin: 4px 0;
+                }}
+                QPushButton:hover {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #fff5f0, stop:1 #ffe0cc);
+                    border: 4px solid {color};
+                    color: {color};
+                    transform: translateY(-3px);
+                    box-shadow: 0 8px 25px rgba(255,102,0,0.5);
+                }}
+                QPushButton:pressed {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #ffe0cc, stop:1 #ffcc99);
+                    border: 4px solid {color};
+                    color: {color};
+                }}
+            """)
+
+        created_buttons[0].clicked.disconnect()  # Disconnect existing handler
+        created_buttons[0].clicked.connect(self.ecg_menu.show_save_ecg)
+        
+        created_buttons[1].clicked.disconnect()
+        created_buttons[1].clicked.connect(self.ecg_menu.open_ecg_window)
+        
+        created_buttons[2].clicked.disconnect()
+        created_buttons[2].clicked.connect(self.ecg_menu.show_working_mode)
+        
+        created_buttons[3].clicked.disconnect()
+        created_buttons[3].clicked.connect(self.ecg_menu.show_printer_setup)
+        
+        created_buttons[4].clicked.disconnect()
+        created_buttons[4].clicked.connect(self.ecg_menu.set_filter_setup)
+        
+        created_buttons[5].clicked.disconnect()
+        created_buttons[5].clicked.connect(self.ecg_menu.show_system_setup)
+        
+        created_buttons[6].clicked.disconnect()
+        created_buttons[6].clicked.connect(self.ecg_menu.show_load_default)
+        
+        created_buttons[7].clicked.disconnect()
+        created_buttons[7].clicked.connect(self.ecg_menu.show_version_info)
+        
+        created_buttons[8].clicked.disconnect()
+        created_buttons[8].clicked.connect(self.ecg_menu.show_factory_maintain)
+
+        # Recording Toggle Button Section
+        recording_frame = QFrame()
+        recording_frame.setStyleSheet("""
+            QFrame {
+                background: transparent;
+                border: none;
+                padding: 10px;
+                margin-top: 5px;
+            }
+        """)
+
+        recording_layout = QVBoxLayout(recording_frame)
+        
+        # Toggle-style recording button
+        self.recording_toggle = QPushButton("Record Screen")
+        self.recording_toggle.setFixedHeight(77)
+        self.recording_toggle.setCheckable(True)
+        self.recording_toggle.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                color: #1a1a1a;
+                border: 3px solid #e9ecef;
+                border-radius: 15px;
+                padding: 20px 30px;
+                font-size: 18px;
+                font-weight: bold;
+                text-align: center;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #fff5f0, stop:1 #ffe0cc);
+                border: 4px solid #ff6600;
+                color: #ff6600;
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(255,102,0,0.5);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #ffe0cc, stop:1 #ffcc99);
+                border: 4px solid #ff6600;
+                color: #ff6600;
+            }
+            QPushButton:checked {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #fff5f0, stop:1 #ffe0cc);
+                border: 4px solid #dc3545;
+                color: #dc3545;
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(220,53,69,0.5);
+            }
+            QPushButton:checked:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #ffe0cc, stop:1 #ffcc99);
+                border: 4px solid #c82333;
+                color: #c82333;
+            }
+        """)
+        self.recording_toggle.clicked.connect(self.toggle_recording)
+        recording_layout.addWidget(self.recording_toggle)
+        
+        menu_layout.addWidget(recording_frame)
+        
+        # Initialize recording variables
+        self.is_recording = False
+        self.recording_writer = None
+        self.recording_frames = []
+
 
         conn_layout = QHBoxLayout()
         self.port_combo = QComboBox()
@@ -302,6 +501,17 @@ class ECGTestPage(QWidget):
 
         self.plot_area = QWidget()
         main_vbox.addWidget(self.plot_area)
+
+        main_vbox.setSpacing(16)
+        main_vbox.setContentsMargins(24, 24, 24, 24)
+
+        # Add section dividers
+        def create_section_divider(title):
+            divider = QFrame()
+            divider.setFrameShape(QFrame.HLine)
+            divider.setStyleSheet("QFrame { border: 1px solid #e9ecef; margin: 16px 0; }")
+            return divider
+
         self.update_lead_layout()
 
         btn_layout = QHBoxLayout()
@@ -325,6 +535,30 @@ class ECGTestPage(QWidget):
 
         self.start_btn.clicked.connect(self.start_acquisition)
         self.stop_btn.clicked.connect(self.stop_acquisition)
+
+
+        self.start_btn.setToolTip("Start ECG recording from the selected port")
+        self.stop_btn.setToolTip("Stop current ECG recording")
+        self.export_pdf_btn.setToolTip("Export ECG data as PDF report")
+        self.export_csv_btn.setToolTip("Export ECG data as CSV file")
+
+        # Add help button
+        help_btn = QPushButton("?")
+        help_btn.setStyleSheet("""
+            QPushButton {
+                background: #6c757d;
+                color: white;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #495057;
+            }
+        """)
+        help_btn.clicked.connect(self.show_help)
+
         self.export_pdf_btn.clicked.connect(self.export_pdf)
         self.export_csv_btn.clicked.connect(self.export_csv)
         self.back_btn.clicked.connect(self.go_back)
@@ -332,23 +566,164 @@ class ECGTestPage(QWidget):
         self.all_leads_btn.clicked.connect(self.show_all_leads_overlay)
         # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
 
-        # --- Add menu using ECGMenu ---
-        self.menu = ECGMenu(parent=self, dashboard=self.stacked_widget.parent())
-        self.menu.on_save_ecg = self.show_save_ecg
-        self.menu.on_open_ecg = self.show_open_ecg
-        self.menu.on_working_mode = self.show_working_mode
-        self.menu.on_printer_setup = self.show_printer_setup
-        self.menu.on_set_filter = self.open_filter_settings
-        self.menu.on_system_setup = self.show_system_setup
-        self.menu.on_load_default = self.show_factory_default_config
-        self.menu.on_version_info = self.show_version_info
-        self.menu.on_factory_maintain = self.show_maintain_password
-        self.menu.on_exit = self.show_exit_page
-
         main_hbox = QHBoxLayout(self.grid_widget)
-        main_hbox.addWidget(self.menu)
-        main_hbox.addLayout(main_vbox)
+        main_hbox.addWidget(menu_container, 0)  # Fixed width for menu
+        main_hbox.addLayout(main_vbox, 1)  # Give main_vbox more space
+        main_hbox.setSpacing(15)  # Add spacing between menu and main content
         self.grid_widget.setLayout(main_hbox)
+
+    # ------------------------ Show help dialog ------------------------
+
+    def show_help(self):
+        help_text = """
+        <h3>12-Lead ECG Monitor Help</h3>
+        <p><b>Getting Started:</b></p>
+        <ul>
+        <li>Select a COM port and baud rate</li>
+        <li>Click 'Start' to begin recording</li>
+        <li>Click on any lead to view it in detail</li>
+        <li>Use the menu options for additional features</li>
+        </ul>
+        <p><b>Features:</b></p>
+        <ul>
+        <li>Real-time 12-lead ECG monitoring</li>
+        <li>Export data as PDF or CSV</li>
+        <li>Detailed lead analysis</li>
+        <li>Arrhythmia detection</li>
+        </ul>
+        """
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Help - 12-Lead ECG Monitor")
+        msg.setText(help_text)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
+    # ------------------------ Recording Details ------------------------
+
+    def toggle_recording(self):
+        if self.recording_toggle.isChecked():
+            self.start_recording()
+        else:
+            self.stop_recording()
+    
+    def start_recording(self):
+        try:
+            # Initialize recording
+            self.is_recording = True
+            
+            # Update UI - only change button text, no status updates
+            self.recording_toggle.setText("STOP")
+            
+            # Start capture timer
+            self.recording_timer = QTimer()
+            self.recording_timer.timeout.connect(self.capture_frame)
+            self.recording_timer.start(33)  # ~30 FPS
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Recording Error", f"Failed to start recording: {str(e)}")
+            self.is_recording = False
+            self.recording_toggle.setChecked(False)
+    
+    def stop_recording(self):
+        try:
+            # Stop recording
+            self.is_recording = False
+            if hasattr(self, 'recording_timer'):
+                self.recording_timer.stop()
+            
+            # Update UI - only change button text, no status updates
+            self.recording_toggle.setText("RECORD")
+            
+            # Ask user if they want to save the recording
+            if len(self.recording_frames) > 0:
+                reply = QMessageBox.question(
+                    self, 
+                    "Save Recording", 
+                    "Would you like to save the recording?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self.save_recording()
+                else:
+                    # Discard recording
+                    self.recording_frames.clear()
+                    QMessageBox.information(self, "Recording Discarded", "Recording has been discarded.")
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Recording Error", f"Failed to stop recording: {str(e)}")
+            self.recording_toggle.setChecked(True)
+
+    def capture_frame(self):
+        try:
+            if self.is_recording:
+                # Capture the current window
+                screen = QApplication.primaryScreen()
+                pixmap = screen.grabWindow(self.winId())
+                
+                # Convert to numpy array for OpenCV
+                image = pixmap.toImage()
+                width = image.width()
+                height = image.height()
+                ptr = image.bits()
+                ptr.setsize(height * width * 4)
+                arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4))
+                arr = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+                
+                # Store frame
+                self.recording_frames.append(arr)
+                
+        except Exception as e:
+            print(f"Frame capture error: {e}")
+    
+    def save_recording(self):
+        try:
+            if len(self.recording_frames) == 0:
+                QMessageBox.warning(self, "No Recording", "No frames to save.")
+                return
+            
+            # Get save file path
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"ecg_recording_{timestamp}.mp4"
+            
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Recording",
+                default_filename,
+                "MP4 Files (*.mp4);;AVI Files (*.avi);;All Files (*)"
+            )
+            
+            if file_path:
+                # Get video dimensions from first frame
+                height, width = self.recording_frames[0].shape[:2]
+                
+                # Create video writer
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(file_path, fourcc, 30.0, (width, height))
+                
+                # Write frames
+                for frame in self.recording_frames:
+                    out.write(frame)
+                
+                out.release()
+                
+                # Clear frames
+                self.recording_frames.clear()
+                
+                QMessageBox.information(
+                    self, 
+                    "Recording Saved", 
+                    f"Recording saved successfully to:\n{file_path}"
+                )
+            else:
+                # User cancelled save
+                self.recording_frames.clear()
+                QMessageBox.information(self, "Recording Cancelled", "Recording was not saved.")
+                
+        except Exception as e:
+            QMessageBox.warning(self, "Save Error", f"Failed to save recording: {str(e)}")
+            self.recording_frames.clear()
 
     # ------------------------ Get lead figure in pdf ------------------------
 
@@ -687,26 +1062,51 @@ class ECGTestPage(QWidget):
             group = QGroupBox(lead)
             group.setStyleSheet("""
                 QGroupBox {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                        stop:0 #ffffff, stop:1 #f8f9fa);
+                    border: 2px solid #e9ecef;
+                    border-radius: 16px;
+                    color: #495057;
+                    font: bold 16px 'Segoe UI';
+                    margin-top: 12px;
+                    padding: 12px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
+                QGroupBox:hover {
                     border: 2px solid #ff6600;
-                    border-radius: 12px;
-                    background: #fff;
-                    color: #ff6600;
-                    font: bold 14pt Arial;
-                    margin-top: 8px;
-                    padding: 6px;
+                    box-shadow: 0 6px 20px rgba(255,102,0,0.2);
+                    transform: translateY(-2px);
                 }
             """)
             vbox = QVBoxLayout(group)
-            fig = Figure(facecolor='#fff', figsize=(6, 2.5))
+            fig = Figure(facecolor='#fafbfc', figsize=(6, 2.5))
             ax = fig.add_subplot(111)
-            ax.set_facecolor('#fff')
+            ax.set_facecolor('#fafbfc')
             ax.set_ylim(-400, 400)
             ax.set_xlim(0, self.buffer_size)
-            ax.tick_params(axis='x', colors='#ff6600')
-            ax.tick_params(axis='y', colors='#ff6600')
+            
+            # Modern grid styling
+            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#e9ecef')
+            ax.set_axisbelow(True)
+
+            # Remove spines for cleaner look
             for spine in ax.spines.values():
-                spine.set_color('#ff6600')
-            line, = ax.plot([0]*self.buffer_size, color=self.LEAD_COLORS.get(lead, '#ff6600'), lw=2)
+                spine.set_visible(False)
+
+            # Style ticks
+            ax.tick_params(axis='both', colors='#6c757d', labelsize=10)
+            ax.tick_params(axis='x', length=0)
+            ax.tick_params(axis='y', length=0)
+
+            # Enhanced line styling
+            import matplotlib.patheffects as path_effects 
+            line, = ax.plot([0]*self.buffer_size, 
+                            color=self.LEAD_COLORS.get(lead, '#ff6600'), 
+                            lw=0.5, 
+                            alpha=0.9,
+                            path_effects=[path_effects.SimpleLineShadow(offset=(1,1), alpha=0.3),
+                                        path_effects.Normal()])
+
             self.lines.append(line)
             canvas = FigureCanvas(fig)
             vbox.addWidget(canvas)
@@ -725,6 +1125,7 @@ class ECGTestPage(QWidget):
     def start_acquisition(self):
         port = self.port_combo.currentText()
         baud = self.baud_combo.currentText()
+
         if port == "Select Port" or baud == "Select Baud Rate":
             self.show_connection_warning()
             return
@@ -838,13 +1239,15 @@ class ECGTestPage(QWidget):
             })
 
     def update_plot(self):
+        
         if not self.serial_reader:
             return
+        
         line = self.serial_reader.ser.readline()
         line_data = line.decode('utf-8', errors='replace').strip()
         if not line_data:
             return
-        print("Received:", line_data)
+        
         try:
             values = [int(x) for x in line_data.split()]
             if len(values) != 8:
@@ -879,6 +1282,7 @@ class ECGTestPage(QWidget):
                 self.data[lead].append(lead_data[lead])
                 if len(self.data[lead]) > self.buffer_size:
                     self.data[lead].pop(0)
+            
             # Write latest Lead II data to file for dashboard
             try:
                 import json
@@ -886,6 +1290,8 @@ class ECGTestPage(QWidget):
                     json.dump(self.data["II"][-500:], f)
             except Exception as e:
                 print("Error writing lead_ii_live.json:", e)
+            
+            
             for i, lead in enumerate(self.leads):
                 if len(self.data[lead]) > 0:
                     if len(self.data[lead]) < self.buffer_size:
@@ -893,10 +1299,20 @@ class ECGTestPage(QWidget):
                         data[-len(self.data[lead]):] = self.data[lead]
                     else:
                         data = np.array(self.data[lead])
+                    
                     centered = data - np.nanmean(data)
+                    
+                    
                     self.lines[i].set_ydata(centered)
                     self.axs[i].set_ylim(-400, 400)
+                    self.axs[i].set_xlim(0, self.buffer_size)
+                    
+                    # Remove any existing labels
+                    self.axs[i].set_xlabel("")
+                    self.axs[i].set_ylabel("")
+                    
                     self.canvases[i].draw_idle()
+                    
         except Exception as e:
             print("Error parsing ECG data:", e)
 
@@ -938,81 +1354,11 @@ class ECGTestPage(QWidget):
     def show_main_menu(self):  
         self.clear_content()
 
-    def save_ecg(self):
-        self.show_save_ecg()
-
-    def open_ecg(self):
-        self.show_open_ecg()
-
-    def working_mode(self):
-        self.show_working_mode()
-
-    def printer_setup(self):
-        self.show_printer_setup()
-
-    def set_filter(self):
-        self.open_filter_settings()
-
-    def system_setup(self):
-        self.show_system_setup()
-
-    def load_default(self):
-        self.show_factory_default_config()
-
-    def version_info(self):
-        self.show_version_info()
-
-    def factory_maintain(self):
-        self.show_maintain_password()
-
-    def exit_app(self):
-        self.show_exit_page()
-
     def clear_content(self):
         for i in reversed(range(self.content_layout.count())):
             widget = self.content_layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
-
-    def show_save_ecg(self):
-        # ...user's full show_save_ecg code here...
-        QMessageBox.information(self, "Save ECG", "Save ECG UI would show here.")
-
-    def show_open_ecg(self):
-        # ...user's full show_open_ecg code here...
-        QMessageBox.information(self, "Open ECG", "Open ECG UI would show here.")
-
-    def show_working_mode(self):
-        # ...user's full show_working_mode code here...
-        QMessageBox.information(self, "Working Mode", "Working Mode UI would show here.")
-
-    def show_printer_setup(self):
-        # ...user's full show_printer_setup code here...
-        QMessageBox.information(self, "Printer Setup", "Printer Setup UI would show here.")
-
-    def open_filter_settings(self):
-        # ...user's full open_filter_settings code here...
-        QMessageBox.information(self, "Set Filter", "Set Filter UI would show here.")
-
-    def show_system_setup(self):
-        # ...user's full show_system_setup code here...
-        QMessageBox.information(self, "System Setup", "System Setup UI would show here.")
-
-    def show_factory_default_config(self):
-        # ...user's full show_factory_default_config code here...
-        QMessageBox.information(self, "Load Default", "Load Default UI would show here.")
-
-    def show_version_info(self):
-        # ...user's full show_version_info code here...
-        QMessageBox.information(self, "Version", "Version UI would show here.")
-
-    def show_maintain_password(self):
-        # ...user's full show_maintain_password code here...
-        QMessageBox.information(self, "Factory Maintain", "Factory Maintain UI would show here.")
-
-    def show_exit_page(self):
-        # ...user's full show_exit_page code here...
-        self.close()
 
     def show_sequential_view(self):
         from ecg.lead_sequential_view import LeadSequentialView

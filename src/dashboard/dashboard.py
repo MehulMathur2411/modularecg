@@ -555,6 +555,7 @@ class Dashboard(QWidget):
             self.setStyleSheet("")
             self.medical_btn.setText("Medical Mode")
             self.medical_btn.setStyleSheet("background: #00b894; color: white; border-radius: 10px; padding: 4px 18px;")
+            
     def toggle_dark_mode(self):
         self.dark_mode = not self.dark_mode
         if self.dark_mode:
@@ -584,9 +585,6 @@ class Dashboard(QWidget):
                     cal.setStyleSheet("background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff;")
                 for txt in child.findChildren(QTextEdit):
                     txt.setStyleSheet("background: #232323; color: #fff; border-radius: 12px; border: 2px solid #fff;")
-            # Remove all margins and spacing for a seamless dark look
-            self.layout().setContentsMargins(0, 0, 0, 0)
-            self.layout().setSpacing(10)
         else:
             self.setStyleSheet("")
             self.dark_btn.setText("Dark Mode")
@@ -604,8 +602,6 @@ class Dashboard(QWidget):
                     cal.setStyleSheet("")
                 for txt in child.findChildren(QTextEdit):
                     txt.setStyleSheet("")
-            self.layout().setContentsMargins(20, 20, 20, 20)
-            self.layout().setSpacing(20)
         
     def center_on_screen(self):
         qr = self.frameGeometry()

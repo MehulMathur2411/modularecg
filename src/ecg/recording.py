@@ -3,6 +3,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
 from PyQt5.QtCore import QTimer, Qt
+from utils.settings_manager import SettingsManager
 
 class ECGRecording:
     def __init__(self):
@@ -118,8 +119,9 @@ class Lead12BlackPage(QWidget):
 
 class ECGMenu(QGroupBox):
     def __init__(self, parent=None, dashboard=None):
-        super().__init__("Menu", parent)
+        super().__init__("", parent)
         self.dashboard = dashboard
+        self.settings_manager = SettingsManager()
         self.setStyleSheet("QGroupBox { font: bold 14pt Arial; background-color: #fff; border-radius: 10px; }")
         layout = QVBoxLayout(self)
         self.buttons = {}
@@ -133,7 +135,6 @@ class ECGMenu(QGroupBox):
             ("Load Default", self.on_load_default),
             ("Version", self.on_version_info),
             ("Factory Maintain", self.on_factory_maintain),
-            ("12:1", self.on_12to1), 
             ("Exit", self.on_exit)
         ]
         for text, handler in menu_buttons:
@@ -163,11 +164,6 @@ class ECGMenu(QGroupBox):
         self.show_version_info()
     def on_factory_maintain(self):
         self.show_factory_maintain()
-    def on_12to1(self):
-        self.lead12_window = Lead12BlackPage(dashboard=self.dashboard)
-        self.lead12_window.setWindowTitle("12:1 ECG Leads")
-        self.lead12_window.resize(1600, 300)
-        self.lead12_window.show()
     def on_exit(self):
         self.show_exit()
 
@@ -466,13 +462,13 @@ class ECGMenu(QGroupBox):
                 hbox.addWidget(btn)
             container_layout.addWidget(group_box)
 
-        # Variables (dict-based because PyQt doesn't have tk.StringVar)
-        wave_speed = {"value": "50"}
-        wave_gain = {"value": "10"}
-        lead_seq = {"value": "Standard"}
-        sampling = {"value": "Simultaneous"}
-        demo_func = {"value": "Off"}
-        storage = {"value": "SD"}
+        # Load current settings
+        wave_speed = {"value": self.settings_manager.get_setting("wave_speed")}
+        wave_gain = {"value": self.settings_manager.get_setting("wave_gain")}
+        lead_seq = {"value": self.settings_manager.get_setting("lead_sequence")}
+        sampling = {"value": self.settings_manager.get_setting("sampling_mode")}
+        demo_func = {"value": self.settings_manager.get_setting("demo_function")}
+        storage = {"value": self.settings_manager.get_setting("storage")}
 
         add_section("Wave Speed", [("12.5mm/s", "12.5"), ("25.0mm/s", "25"), ("50.0mm/s", "50")], wave_speed)
         add_section("Wave Gain", [("2.5mm/mV", "2.5"), ("5mm/mV", "5"), ("10mm/mV", "10"), ("20mm/mV", "20")], wave_gain)
@@ -516,11 +512,37 @@ class ECGMenu(QGroupBox):
 
         container_layout.addWidget(btn_frame)
 
+        def save_working_mode_settings():
+            # Save all settings
+            self.settings_manager.set_setting("wave_speed", wave_speed["value"])
+            self.settings_manager.set_setting("wave_gain", wave_gain["value"])
+            self.settings_manager.set_setting("lead_sequence", lead_seq["value"])
+            self.settings_manager.set_setting("sampling_mode", sampling["value"])
+            self.settings_manager.set_setting("demo_function", demo_func["value"])
+            self.settings_manager.set_setting("storage", storage["value"])
+                
+            # Terminal verification
+            print(f"=== Working Mode Settings Saved ===")
+            print(f"Wave Speed: {wave_speed['value']} mm/s")
+            print(f"Wave Gain: {wave_gain['value']} mm/mV")
+            print(f"Lead Sequence: {lead_seq['value']}")
+            print(f"Sampling Mode: {sampling['value']}")
+            print(f"Demo Function: {demo_func['value']}")
+            print(f"Storage: {storage['value']}")
+            print(f"================================")
+                
+            QMessageBox.information(dialog, "Saved", "Working mode settings saved successfully!")
+            dialog.accept()
+            
+        ok_btn.clicked.connect(save_working_mode_settings)
+        btn_layout.addWidget(ok_btn)
+
         dialog_layout = QVBoxLayout()
         dialog.setLayout(dialog_layout)
         dialog_layout.addWidget(container)
 
         dialog.exec_()
+            
 
     def open_keypad(self, entry_widget, parent_dialog=None):
         keypad_dialog = QDialog(parent_dialog if parent_dialog else self.dashboard if self.dashboard else self)

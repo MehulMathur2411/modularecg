@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit, QFrame, QApplication
 )
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from ecg.recording import ECGMenu
@@ -328,6 +328,10 @@ class ECGTestPage(QWidget):
         # Create ECGMenu instance to use its methods
         self.ecg_menu = ECGMenu(parent=self, dashboard=self.stacked_widget.parent())
 
+        # Initialize sliding panel for the ECG menu
+        self.ecg_menu.sliding_panel = None
+        self.ecg_menu.parent_widget = self
+
         self.ecg_menu.setVisible(False)
         self.ecg_menu.hide()
         
@@ -390,7 +394,7 @@ class ECGTestPage(QWidget):
                 }}
             """)
 
-        created_buttons[0].clicked.disconnect()  # Disconnect existing handler
+        created_buttons[0].clicked.disconnect()
         created_buttons[0].clicked.connect(self.ecg_menu.show_save_ecg)
         
         created_buttons[1].clicked.disconnect()

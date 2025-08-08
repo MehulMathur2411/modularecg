@@ -35,93 +35,151 @@ def generate_ecg_html_report(
     QTc = to_float(QTc)
     ST = to_float(ST)
 
-    # --- HTML HEADER ---
     html = f"""
     <html>
     <head>
     <style>
-        body {{
+       
+   body {{
             font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
-            background: #f7f7f7;
+            background: #ffffff;
             color: #222;
             margin: 0;
             padding: 0;
         }}
+        .report-container {{
+            margin: 40px;
+            border: 3px solid #2453ff; /* Clean blue border */
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 24px rgba(36, 83, 255, 0.1);
+            background: #fff;
+        }}
         .header-bar {{
-            background: linear-gradient(90deg, #2453ff 0%, #ff6600 100%);
-            color: #222;
-            padding: 32px 0 18px 0;
-            text-align: center;
-            border-radius: 0 0 32px 32px;
-            box-shadow: 0 2px 16px #2453ff44;
-        }}
-        .header-bar h1 {{
-            color: #222;
-            margin: 0;
-            font-size: 2.6em;
-            letter-spacing: 2px;
-            font-weight: bold;
-            text-shadow: 0 2px 12px #0004;
-        }}
-        .header-bar h3 {{
-            color: #222;
-            margin: 10px 0 0 0;
-            font-weight: normal;
-            font-size: 1.2em;
-            text-shadow: 0 1px 6px #0002;
-        }}
-        .first-section {{
-            background: linear-gradient(120deg, #eaf0ff 0%, #fffbe7 100%);
-            margin: 36px auto 0 auto;
-            border-radius: 24px;
-            box-shadow: 0 2px 24px #2453ff22;
-            max-width: 820px;
-            padding: 38px 48px 38px 48px;
             display: flex;
-            flex-direction: column;
-            align-items: center;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 32px 48px 18px 48px;
+            background: linear-gradient(90deg, #eaf0ff 0%, #fffbe7 100%);
+            border-radius: 0 0 32px 32px;
+            box-shadow: 0 2px 16px #2453ff22;
+        }}
+        .header-title {{
+           font-family: Georgia, serif;
+           font-size: 400px;               
+           font-weight: 900;              
+           color: #0E2148;                
+           letter-spacing: 2px;           
+           text-transform: uppercase;     
+           text-align: left;              
+           padding:10px 0;
+           border-bottom: 4px solid #ff6600;
+        }}
+        .header-date {{
+            font-size: 200px;
+            color: #000000;
+            font-weight: 500;
+            text-align: right;
+        }}
+        .section {{
+             margin: 36px auto 0 auto;
+             max-width: 820px;
+             background: linear-gradient(145deg, #eaf0ff, #ffffff); /* Soft blue-white blend */
+             border-radius: 24px;
+             box-shadow: 0 4px 28px rgba(36, 83, 255, 0.15);         /* Softer shadow */
+             padding: 38px 48px;
+             border: 1px solid #2453ff33;  
+             color: #1A2A80;
         }}
         .section-title {{
-            color: #2453ff;
-            font-size: 1.5em;
-            font-weight: bold;
-            margin-bottom: 22px;
-            border-bottom: 2px solid #ff6600;
-            padding-bottom: 8px;
-            width: 100%;
-            text-align: left;
+           color: #000000;
+           font-size:300px;
+           font-weight: bold;
+           margin-bottom: 18px;
+           border-bottom: 2px solid #ff6600;
+           padding-bottom: 8px;
+           text-align: left;
         }}
-        .patient-table, .metrics-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 0 0 28px 0;
-            font-size: 1.13em;
-            background: #fff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 1px 8px #2453ff11;
+        
+        .data-table, .metrics-table {{
+            margin-top: 28px; /* Add this for gap above the table */
+            /* ...existing code... */
         }}
-        .patient-table th, .metrics-table th {{
-            background: #2453ff;
-            color: #fff;
-            padding: 12px 10px;
-            font-weight: bold;
-            font-size: 1.08em;
+        .data-table {{
+             width: 300%;
+             border-collapse: separate;
+             border-spacing: 0;
+             margin-bottom: 28px;
+             font-size: 1.13em;
+             background: #ffffff;
+             border-radius: 12px;
+             overflow: hidden;
+             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+             border: 1px solid #e0e0e0;
         }}
-        .patient-table td, .metrics-table td {{
-            padding: 12px 10px;
-            border-bottom: 1px solid #eee;
-            text-align: center;
+        .data-table th {{
+           padding: 16px 28px;
+           text-align: left;
+           white-space: nowrap;
         }}
-        .patient-table tr:last-child td, .metrics-table tr:last-child td {{
+        .data-table td {{
+           padding: 16px 28px;
+           text-align: left;
+           white-space: nowrap;
+        }}
+        
+         .data-table th {{
+          border-bottom: 1px solid #ddd;
+        }}
+        
+        .data-table tr{{
             border-bottom: none;
         }}
-        .metrics-table tr:nth-child(even) {{
-            background: #f7faff;
+        
+        .metrics-table {{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 1.1em;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+            margin: 30px 0;
         }}
-        .metrics-table tr:nth-child(odd) {{
-            background: #fff;
+        .metrics-table th, 
+        .metrics-table td {{
+            padding: 20px 40px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
         }}
+       .metrics-table th {{
+           background-color: #f9f9f9;
+           font-weight: bold;
+           color: #333333;
+           border-bottom: 2px solid #ff6600;
+        }}
+        .metrics-table tr:nth-child(even) td {{
+            background-color: #fcfcfc;
+        }}        
+        .metrics-table tr:hover td {{
+            background-color: #f2faff;
+        }}        
+        .metrics-table td {{
+            color: #222;
+        }}
+        
+        
+        # .wide-col {{
+        # min-width: 300px;  /* adjust width as needed */
+        # }}
+        # .metrics-table tr:nth-child(even) td {{
+        #     background: #f7faff;
+        # }}
+        # .metrics-table tr:nth-child(odd) td {{
+        #     background: #fff;
+        # }}
+        
         .page-break {{
             page-break-after: always;
         }}
@@ -140,61 +198,88 @@ def generate_ecg_html_report(
             text-align: center;
             font-weight: bold;
             color: #2453ff;
-            margin-bottom: 3px;
-            font-size: 1.1em;
+            margin-bottom: 6px;
+            font-size: 100em;
         }}
         .lead-img {{
             border: 2.5px solid #2453ff;
             border-radius: 12px;
             background: #fff;
             max-width: 95%;
-            max-height: 320px;
+            max-height: 350px;
             margin: 0 auto 0 auto;
             display: block;
         }}
-        .conclusion, .recommendations {{
-            margin-top: 18px;
-            font-size: 1.08em;
-        }}
-        .conclusion-title, .recommendations-title {{
-            color: #ff6600;
-            font-weight: bold;
-            margin-bottom: 8px;
-            font-size: 1.13em;
-            text-decoration: underline;
-        }}
-        .disclaimer {{
-            margin-top: 24px;
-            font-size: 0.98em;
-            color: #888;
-            background: #fffbe7;
-            border-radius: 8px;
-            padding: 10px 18px;
-            border-left: 4px solid #ff6600;
-        }}
+        
+       .conclusion-section {{
+    margin: 40px auto;
+    padding: 32px 48px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    font-family: Georgia, serif;
+    color: #222;
+    max-width: 800px;
+}}
+
+.conclusion-title,
+.recommendations-title {{
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #000;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #ff6600;
+    padding-bottom: 6px;
+}}
+
+.conclusion-text {{
+    font-size: 1.1em;
+    margin-bottom: 32px;
+    line-height: 1.6;
+}}
+
+.recommendations-section {{
+    margin-bottom: 32px;
+}}
+
+.recommendations-list {{
+    padding-left: 20px;
+    line-height: 1.6;
+}}
+
+.disclaimer {{
+    font-size: 0.95em;
+    background: #fffbe7;
+    padding: 16px;
+    border-left: 4px solid #ffaa00;
+    border-radius: 8px;
+    line-height: 1.5;
+}}
+
+.disclaimer-label {{
+    font-weight: bold;
+    color: #aa0000;
+}}
+
     </style>
     </head>
     <body>
+       <div class="report-container">
         <div class="header-bar">
-            <h1>{test_name}</h1>
-            <h3>Date: {date_time}</h3>
+            <div class="header-title">{test_name}</div>
+            <div class="header-date">{date_time}</div>
         </div>
-        <div class="first-section">
+        <div class="section">
             <div class="section-title">Patient Details</div>
-            <table class="patient-table">
-                <tr>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Age</th>
-                    <th>Gender</th>
-                </tr>
-                <tr>
-                    <td>{first_name}</td>
-                    <td>{last_name}</td>
-                    <td>{age}</td>
-                    <td>{gender}</td>
-                </tr>
+            <table class="data-table">
+                 <tr>
+                    <th class="wide-col"><b>First Name:<b> {first_name}</th>
+                    <th class="wide-col">Last Name: {last_name}</th>
+                    <th class="wide-col">Age: {age}</th>
+                    <th class="wide-col">Gender:{gender}</th>
+                 </tr>               
             </table>
+            
             <div class="section-title">Observed Values</div>
             <table class="metrics-table">
                 <tr>
@@ -211,23 +296,22 @@ def generate_ecg_html_report(
                 <tr><td>QRS Axis</td><td>{'Not Available' if QRS_axis is None else QRS_axis}</td><td>Typically -30° to +90°</td></tr>
             </table>
         </div>
-        <div class="page-break"></div>
     """
 
-    # --- 12 LEAD GRAPHS, 2 PER PAGE ---
+     # --- 12 LEAD GRAPHS, 2 PER PAGE ---
     lead_order = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
     if lead_img_paths:
-        for i in range(0, len(lead_order), 2):
+        for i in range(0, len(lead_order), 4):
             html += '<div style="display: flex; flex-direction: column; align-items: center;">'
-            for j in range(2):
+            for j in range(4):
                 if i + j < len(lead_order):
                     lead = lead_order[i + j]
                     img_path = lead_img_paths.get(lead)
                     if img_path and os.path.exists(img_path):
                         html += f"""
                         <div class="lead-block" style="padding-bottom:0;">
-                            <div class="lead-label" style="font-size:1em;">{lead}</div>
-                            <img src="{img_path}" class="lead-img" alt="{lead} Graph" height="200" width="500">
+                            <div class="lead-label" style="font-size:300px;">{lead}</div>
+                            <img src="{img_path}" class="lead-img" alt="{lead} Graph" height="250" width="550">
                         </div>
                         """
             html += '</div>'
@@ -235,25 +319,28 @@ def generate_ecg_html_report(
 
     # --- CONCLUSION SECTION (Last Page) ---
     html += """
-        <div class="section">
-            <div class="conclusion">
-                <div class="conclusion-title">Conclusion</div>
-                <div>
-                    This ECG report is generated automatically. Please consult your physician for a detailed diagnosis.
-                </div>
-                <div class="recommendations">
-                    <div class="recommendations-title">Recommendations</div>
-                    <ul>
-                        <li>Consult your physician for a detailed diagnosis.</li>
-                        <li>Repeat ECG if symptoms persist or worsen.</li>
-                        <li>Maintain a healthy lifestyle and regular checkups.</li>
-                    </ul>
-                </div>
-                <div class="disclaimer">
-                    Disclaimer: This ECG report is an interpretation of electrical parameters and may vary over time. <b>PLEASE CONSULT YOUR PHYSICIAN FOR DIAGNOSIS.</b>
-                </div>
-            </div>
-        </div>
+        <div class="conclusion-section">
+    <div class="conclusion-title">Conclusion</div>
+    <div class="conclusion-text">
+        This ECG report is generated automatically. Please consult your physician for a detailed diagnosis.
+    </div>
+
+    <div class="recommendations-section">
+        <div class="recommendations-title">Recommendations</div>
+        <ul class="recommendations-list">
+            <li>Consult your physician for a detailed diagnosis.</li>
+            <li>Repeat ECG if symptoms persist or worsen.</li>
+            <li>Maintain a healthy lifestyle and regular checkups.</li>
+        </ul>
+    </div>
+
+    <div class="disclaimer">
+        <span class="disclaimer-label">Disclaimer:</span>
+        This ECG report is an interpretation of electrical parameters and may vary over time. 
+        <b>PLEASE CONSULT YOUR PHYSICIAN FOR DIAGNOSIS.</b>
+    </div>
+</div>
+
     </body>
     </html>
     """

@@ -1,8 +1,12 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QPushButton, QWidget, QLabel, QMessageBox, QFrame, QGridLayout, QLineEdit, QComboBox, QHBoxLayout, QDialog, QRadioButton, QApplication
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, 
+    QLineEdit, QComboBox, QSlider, QGroupBox, QListWidget, QDialog,
+    QGridLayout, QFormLayout, QSizePolicy, QMessageBox, QApplication, QRadioButton
+)
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QPropertyAnimation, QEasingCurve, QTimer, pyqtProperty
 from utils.settings_manager import SettingsManager
 
 class ECGRecording:
@@ -117,6 +121,136 @@ class Lead12BlackPage(QWidget):
             except Exception as e:
                 print("ECG analysis error:", e)
 
+class SlidingPanel(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setFixedSize(450, 400)  # Fixed compact size
+        self.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 3px solid #ff6600;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            }
+        """)
+        
+        # Initialize position off-screen to the right
+        if parent:
+            self.setGeometry(parent.width(), (parent.height() - self.height()) // 2, 450, 400)
+        else:
+            self.setGeometry(1200, 200, 450, 400)
+        
+        # Create layout
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(25, 25, 25, 25)
+        self.layout.setSpacing(15)
+        
+        # Header without close button
+        header_layout = QHBoxLayout()
+        self.title_label = QLabel("Settings Panel")
+        self.title_label.setStyleSheet("""
+            QLabel {
+                color: #ff6600;
+                font-size: 18px;
+                font-weight: bold;
+                padding: 5px 0;
+            }
+        """)
+        
+        header_layout.addWidget(self.title_label)
+        header_layout.addStretch()
+        self.layout.addLayout(header_layout)
+        
+        # Content area
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.layout.addWidget(self.content_widget)
+        
+        # Animation setup
+        self.animation = QPropertyAnimation(self, b"geometry")
+        self.animation.setDuration(300)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        
+        self.is_visible = False
+        self.is_animating = False 
+        
+    def set_title(self, title):
+        self.title_label.setText(title)
+        
+    def clear_content(self):
+        # Clear existing content
+        while self.content_layout.count():
+            child = self.content_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+                
+    def slide_in(self, content_widget=None, title="Settings Panel"):
+        
+        if self.parent and not self.is_animating:
+            self.is_animating = True
+            self.set_title(title)
+            self.clear_content()
+            
+            if content_widget:
+                self.content_layout.addWidget(content_widget)
+            
+            # Calculate target position (centered on the right side)
+            target_x = self.parent.width() - self.width() - 20  # 20px margin from right
+            target_y = (self.parent.height() - self.height()) // 2  # Centered vertically
+            
+            # Set up animation
+            self.animation.setStartValue(self.geometry())
+            self.animation.setEndValue(self.parent.geometry().adjusted(target_x, target_y, target_x + self.width(), target_y + self.height()))
+
+            # Disconnect any existing connections
+            try:
+                self.animation.finished.disconnect()
+            except:
+                pass
+            
+            # Connect animation finished signal
+            self.animation.finished.connect(self.on_slide_in_finished)
+            
+            self.show()
+            self.raise_()
+            self.animation.start()
+
+    def on_slide_in_finished(self):
+        
+        self.is_visible = True
+        self.is_animating = False
+            
+    def slide_out(self):
+        
+        if self.parent and self.is_visible and not self.is_animating:
+            self.is_animating = True
+
+            # Calculate end position (off-screen to the right)
+            end_x = self.parent.width()
+            end_y = (self.parent.height() - self.height()) // 2
+            
+            # Set up animation
+            self.animation.setStartValue(self.geometry())
+            self.animation.setEndValue(self.parent.geometry().adjusted(end_x, end_y, end_x + self.width(), end_y + self.height()))
+            
+            # Disconnect any existing connections
+            try:
+                self.animation.finished.disconnect()
+            except:
+                pass
+            
+            # Connect animation finished signal
+            self.animation.finished.connect(self.on_slide_out_finished)
+            self.animation.start()
+
+    def on_slide_out_finished(self):
+        
+        self.hide()
+        self.is_visible = False
+        self.is_animating = False
+
 class ECGMenu(QGroupBox):
     def __init__(self, parent=None, dashboard=None):
         super().__init__("", parent)
@@ -144,6 +278,12 @@ class ECGMenu(QGroupBox):
             layout.addWidget(btn)
             self.buttons[text] = btn
         layout.addStretch(1)
+    
+        # Initialize sliding panel
+        self.sliding_panel = None
+        self.current_panel_content = None
+        self.current_open_panel = None
+        self.panel_buttons = {} 
 
     # Placeholder methods to be connected externally
     def on_save_ecg(self):
@@ -168,17 +308,63 @@ class ECGMenu(QGroupBox):
         self.show_exit()
 
 
-    # ----------------------- Save ECG ------------------------------------
+    def show_sliding_panel(self, content_widget, title, button_name):
+       
+        
+        # If the same panel is already open and visible, close it
+        if self.current_open_panel == button_name and self.sliding_panel and self.sliding_panel.is_visible:
+            self.hide_sliding_panel()
+            self.current_open_panel = None
+            return
+        
+        # If a different panel is open, close it first
+        if self.sliding_panel and self.sliding_panel.is_visible:
+            self.hide_sliding_panel()
+        
+        # Create sliding panel if it doesn't exist
+        if not self.sliding_panel:
+            # Find the parent widget (ECGTestPage)
+            parent = self.parent_widget
+            if not parent:
+                parent = self.parent()
+                while parent and not hasattr(parent, 'grid_widget'):
+                    parent = parent.parent()
+            
+            if parent:
+                
+                self.sliding_panel = SlidingPanel(parent)
+                # Add sliding panel to the main layout
+                if hasattr(parent, 'grid_widget') and parent.grid_widget.layout():
+                    parent.grid_widget.layout().addWidget(self.sliding_panel)
+                    print("Added sliding panel to layout")  
+                else:
+                    print("Could not add sliding panel to layout")  
+            else:
+                print("Could not find parent widget")
+        
+        # Show the panel
+        if self.sliding_panel:
+            self.sliding_panel.slide_in(content_widget, title)
+            self.current_open_panel = button_name
+        else:
+            print("Sliding panel is None")  
 
+    def hide_sliding_panel(self):
+        if self.sliding_panel and self.sliding_panel.is_visible:
+            self.sliding_panel.slide_out()
+            self.current_open_panel = None
 
+    # ----------------------------- Save ECG -----------------------------
+
+    # Modified methods to use sliding panel
     def show_save_ecg(self):
-        # Create a modal dialog for the save form
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Save ECG Details")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
+        content_widget = self.create_save_ecg_content()
+        self.show_sliding_panel(content_widget, "Save ECG Details", "Save ECG")
 
-        layout = QVBoxLayout(dialog)
+    def create_save_ecg_content(self):
+        """Create the save ECG content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(30, 30, 30, 30)
 
         title = QLabel("Save ECG Details")
@@ -231,29 +417,15 @@ class ECGMenu(QGroupBox):
             values["Gender"] = gender_menu.currentText()
 
             if any(v == "" for v in values.values()) or values["Gender"] == "Select":
-                QMessageBox.warning(dialog, "Missing Data", "Please fill all the fields and select gender.")
+                QMessageBox.warning(self.parent(), "Missing Data", "Please fill all the fields and select gender.")
                 return
 
             try:
                 with open("ecg_data.txt", "a") as file:
                     file.write(f"{values['Organisation']}, {values['Doctor']}, {values['Patient Name']}, {values['Age']}, {values['Gender']}\n")
-
-                # --- Store Patient info in Dashboard for PDF report ---
-                if self.dashboard:
-                    # Split patient name into first and last if possible
-                    patient_name = values['Patient Name']
-                    name_parts = patient_name.split()
-                    first_name = name_parts[0] if len(name_parts) > 0 else ""
-                    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
-                    self.dashboard.first_name = first_name
-                    self.dashboard.last_name = last_name
-                    self.dashboard.age = values['Age']
-                    self.dashboard.gender = values['Gender']
-
-                QMessageBox.information(dialog, "Saved", "Details saved to ecg_data.txt successfully.")
-                dialog.accept()
+                QMessageBox.information(self.parent(), "Saved", "Details saved to ecg_data.txt successfully.")
             except Exception as e:
-                QMessageBox.critical(dialog, "Error", f"Failed to save: {e}")
+                QMessageBox.critical(self.parent(), "Error", f"Failed to save: {e}")
 
         # Buttons inside button frame
         button_frame = QFrame()
@@ -268,37 +440,34 @@ class ECGMenu(QGroupBox):
         exit_btn = QPushButton("Exit")
         exit_btn.setStyleSheet("font: 12pt Arial; background-color: red; color: white;")
         exit_btn.setFixedWidth(150)
-        exit_btn.clicked.connect(dialog.reject)
+        exit_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
         button_layout.addWidget(exit_btn)
 
         layout.addWidget(button_frame)
+        
+        return widget
 
-        dialog.exec_()
-
-
-    # ----------------------- Open ECG ------------------------------------
-
+    # ----------------------------- Open ECG -----------------------------
 
     def open_ecg_window(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Open ECG")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(600)
+        content_widget = self.create_open_ecg_content()
+        self.show_sliding_panel(content_widget, "Open ECG Files", "Open ECG")
 
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid gray;")
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(20, 20, 20, 20)
+    def create_open_ecg_content(self):
+        """Create the open ECG content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         title = QLabel("Open ECG")
         title.setStyleSheet("font: bold 16pt Arial; background-color: white;")
         title.setAlignment(Qt.AlignCenter)
-        container_layout.addWidget(title)
+        layout.addWidget(title)
 
         # ---------------------- Top 4 Equal Boxes ----------------------
         top_info_frame = QFrame()
         top_info_frame.setStyleSheet("background-color: white;")
-        container_layout.addWidget(top_info_frame)
+        layout.addWidget(top_info_frame)
 
         box_frame = QFrame()
         box_frame.setStyleSheet("background-color: white; border: 1px solid black;")
@@ -314,22 +483,14 @@ class ECGMenu(QGroupBox):
             lbl.setAlignment(Qt.AlignCenter)
             return lbl
 
-        def vertical_divider(width=3):
-            frame = QFrame()
-            frame.setFixedWidth(width)
-            frame.setStyleSheet("background-color: black;")
-            frame.setFrameShape(QFrame.VLine)
-            frame.setFrameShadow(QFrame.Sunken)
-            return frame
-
         box_layout.addWidget(create_cell("Capacity"))
-        box_layout.addWidget(vertical_divider())
+        box_layout.addWidget(self.vertical_divider())
 
         box_layout.addWidget(create_cell("30000 case"))
-        box_layout.addWidget(vertical_divider())
+        box_layout.addWidget(self.vertical_divider())
 
         box_layout.addWidget(create_cell("Used:"))
-        box_layout.addWidget(vertical_divider())
+        box_layout.addWidget(self.vertical_divider())
 
         box_layout.addWidget(create_cell("0 case"))
 
@@ -347,13 +508,13 @@ class ECGMenu(QGroupBox):
             return lbl
 
         header_layout.addWidget(create_header_cell("ID"))
-        header_layout.addWidget(vertical_divider(1))
+        header_layout.addWidget(self.vertical_divider(1))
 
         header_layout.addWidget(create_header_cell("Gender"))
-        header_layout.addWidget(vertical_divider(1))
+        header_layout.addWidget(self.vertical_divider(1))
 
         header_layout.addWidget(create_header_cell("Age"))
-        container_layout.addWidget(header_frame)
+        layout.addWidget(header_frame)
 
         # ---------------------- Data Rows ----------------------------
         rows_frame = QFrame()
@@ -374,21 +535,21 @@ class ECGMenu(QGroupBox):
             row_layout.setContentsMargins(5, 5, 5, 5)
 
             row_layout.addWidget(create_row_cell("-----------"))
-            row_layout.addWidget(vertical_divider(1))
+            row_layout.addWidget(self.vertical_divider(1))
 
             row_layout.addWidget(create_row_cell("-----------"))
-            row_layout.addWidget(vertical_divider(1))
+            row_layout.addWidget(self.vertical_divider(1))
 
             row_layout.addWidget(create_row_cell("-----------"))
             rows_layout.addWidget(row_outer)
 
-        container_layout.addWidget(rows_frame)
+        layout.addWidget(rows_frame)
 
         # ---------------------- Bottom Buttons ------------------------
         button_frame = QFrame()
         button_frame.setStyleSheet("background-color: white;")
         button_layout = QGridLayout(button_frame)
-        container_layout.addWidget(button_frame)
+        layout.addWidget(button_frame)
 
         active_button = {"value": ""}
         buttons_dict = {}
@@ -409,7 +570,7 @@ class ECGMenu(QGroupBox):
             def make_handler(name=text):
                 def handler():
                     if name == "Exit":
-                        dialog.accept()
+                        self.hide_sliding_panel()  # Close the sliding panel
                     else:
                         active_button["value"] = name
                         update_button_styles()
@@ -423,33 +584,33 @@ class ECGMenu(QGroupBox):
             button_layout.addWidget(btn, r, c)
             buttons_dict[text] = btn
 
-        # Set up dialog layout
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
+        return widget
 
-        dialog.exec_()
+    def vertical_divider(self, width=3):
+        """Vertical divider helper (like Tkinter tk.Frame)"""
+        frame = QFrame()
+        frame.setFixedWidth(width)
+        frame.setStyleSheet("background-color: black;")
+        frame.setFrameShape(QFrame.VLine)
+        frame.setFrameShadow(QFrame.Sunken)
+        return frame
 
-
-    # ----------------------- Working Mode ------------------------------------
-    
+    # ----------------------------- Working Mode -----------------------------
 
     def show_working_mode(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Working Mode")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(600)
+        content_widget = self.create_working_mode_content()
+        self.show_sliding_panel(content_widget, "Working Mode Settings", "Working Mode")
 
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(30, 30, 30, 30)
+    def create_working_mode_content(self):
+        """Create the working mode content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(30, 30, 30, 30)
 
         title = QLabel("Working Mode")
         title.setStyleSheet("font: bold 14pt Arial; background-color: white;")
-        container_layout.addWidget(title)
+        layout.addWidget(title)
 
-        # Helper to add radio button sections
         def add_section(title, options, variable):
             group_box = QGroupBox(title)
             group_box.setStyleSheet("font: bold 12pt Arial; background-color: white;")
@@ -460,15 +621,15 @@ class ECGMenu(QGroupBox):
                 btn.setChecked(variable['value'] == val)
                 btn.toggled.connect(lambda checked, v=val: variable.update({'value': v}) if checked else None)
                 hbox.addWidget(btn)
-            container_layout.addWidget(group_box)
+            layout.addWidget(group_box)
 
-        # Load current settings
-        wave_speed = {"value": self.settings_manager.get_setting("wave_speed")}
-        wave_gain = {"value": self.settings_manager.get_setting("wave_gain")}
-        lead_seq = {"value": self.settings_manager.get_setting("lead_sequence")}
-        sampling = {"value": self.settings_manager.get_setting("sampling_mode")}
-        demo_func = {"value": self.settings_manager.get_setting("demo_function")}
-        storage = {"value": self.settings_manager.get_setting("storage")}
+        # Variables (dict-based because PyQt doesn't have tk.StringVar)
+        wave_speed = {"value": "50"}
+        wave_gain = {"value": "10"}
+        lead_seq = {"value": "Standard"}
+        sampling = {"value": "Simultaneous"}
+        demo_func = {"value": "Off"}
+        storage = {"value": "SD"}
 
         add_section("Wave Speed", [("12.5mm/s", "12.5"), ("25.0mm/s", "25"), ("50.0mm/s", "50")], wave_speed)
         add_section("Wave Gain", [("2.5mm/mV", "2.5"), ("5mm/mV", "5"), ("10mm/mV", "10"), ("20mm/mV", "20")], wave_gain)
@@ -477,23 +638,6 @@ class ECGMenu(QGroupBox):
         add_section("Demo Function", [("Off", "Off"), ("On", "On")], demo_func)
         add_section("Priority Storage", [("U Disk", "U"), ("SD Card", "SD")], storage)
 
-        # Example numeric entry with keypad
-        hbox = QHBoxLayout()
-        num_label = QLabel("Patient Count:")
-        num_label.setStyleSheet("font: 12pt Arial;")
-        hbox.addWidget(num_label)
-        num_entry = QLineEdit()
-        num_entry.setStyleSheet("font: 12pt Arial;")
-        num_entry.setFixedWidth(100)
-        hbox.addWidget(num_entry)
-        keypad_btn = QPushButton("Keypad")
-        keypad_btn.setStyleSheet("font: 11pt Arial;")
-        hbox.addWidget(keypad_btn)
-        container_layout.addLayout(hbox)
-
-        # Connect keypad button
-        keypad_btn.clicked.connect(lambda: self.open_keypad(num_entry, dialog))
-
         # Buttons
         btn_frame = QFrame()
         btn_layout = QHBoxLayout(btn_frame)
@@ -501,58 +645,35 @@ class ECGMenu(QGroupBox):
         ok_btn = QPushButton("OK")
         ok_btn.setFixedWidth(150)
         ok_btn.setStyleSheet("font: 12pt Arial;")
-        ok_btn.clicked.connect(lambda: QMessageBox.information(dialog, "Saved", "Working mode settings saved"))
+        ok_btn.clicked.connect(lambda: QMessageBox.information(self.parent(), "Saved", "Working mode settings saved"))
         btn_layout.addWidget(ok_btn)
 
         exit_btn = QPushButton("Exit")
         exit_btn.setFixedWidth(150)
         exit_btn.setStyleSheet("font: 12pt Arial; background-color: red; color: white;")
-        exit_btn.clicked.connect(dialog.reject)
+        exit_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
         btn_layout.addWidget(exit_btn)
 
-        container_layout.addWidget(btn_frame)
-
-        def save_working_mode_settings():
-            # Save all settings
-            self.settings_manager.set_setting("wave_speed", wave_speed["value"])
-            self.settings_manager.set_setting("wave_gain", wave_gain["value"])
-            self.settings_manager.set_setting("lead_sequence", lead_seq["value"])
-            self.settings_manager.set_setting("sampling_mode", sampling["value"])
-            self.settings_manager.set_setting("demo_function", demo_func["value"])
-            self.settings_manager.set_setting("storage", storage["value"])
-                
-            # Terminal verification
-            print(f"=== Working Mode Settings Saved ===")
-            print(f"Wave Speed: {wave_speed['value']} mm/s")
-            print(f"Wave Gain: {wave_gain['value']} mm/mV")
-            print(f"Lead Sequence: {lead_seq['value']}")
-            print(f"Sampling Mode: {sampling['value']}")
-            print(f"Demo Function: {demo_func['value']}")
-            print(f"Storage: {storage['value']}")
-            print(f"================================")
-                
-            QMessageBox.information(dialog, "Saved", "Working mode settings saved successfully!")
-            dialog.accept()
-            
-        ok_btn.clicked.connect(save_working_mode_settings)
-        btn_layout.addWidget(ok_btn)
-
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
-
-        dialog.exec_()
-            
+        layout.addWidget(btn_frame)
+        
+        return widget
 
     def open_keypad(self, entry_widget, parent_dialog=None):
-        keypad_dialog = QDialog(parent_dialog if parent_dialog else self.dashboard if self.dashboard else self)
-        keypad_dialog.setWindowTitle("Keypad")
-        keypad_dialog.setModal(True)
-        keypad_dialog.setFixedWidth(200)
+        """Open keypad for numeric input"""
+        try:
+            # Remove existing keypad if any
+            if hasattr(self, 'keypad_frame'):
+                self.keypad_frame.deleteLater()
+        except (NameError, RuntimeError):
+            pass
 
-        keypad_layout = QGridLayout(keypad_dialog)
+        # Create keypad frame
+        self.keypad_frame = QFrame(entry_widget.parent())
+        self.keypad_frame.setStyleSheet("background-color: lightgray; border: 1px solid black;")
+        keypad_layout = QGridLayout(self.keypad_frame)
         keypad_layout.setSpacing(4)
 
+        # Input display
         input_var = QLineEdit()
         input_var.setText(entry_widget.text())
         input_var.setReadOnly(True)
@@ -575,11 +696,11 @@ class ECGMenu(QGroupBox):
                 val = int(input_var.text())
                 if 3 <= val <= 20:
                     entry_widget.setText(str(val))
-                    keypad_dialog.accept()
+                    self.keypad_frame.deleteLater()
                 else:
-                    QMessageBox.warning(keypad_dialog, "Invalid", "Please enter a value between 3 and 20.")
+                    QMessageBox.warning(self.parent(), "Invalid", "Please enter a value between 3 and 20.")
             except ValueError:
-                QMessageBox.warning(keypad_dialog, "Invalid", "Please enter a numeric value.")
+                QMessageBox.warning(self.parent(), "Invalid", "Please enter a numeric value.")
 
         # Digit buttons
         positions = [
@@ -616,27 +737,26 @@ class ECGMenu(QGroupBox):
         btn_ok.clicked.connect(apply_value)
         keypad_layout.addWidget(btn_ok, 5, 0, 1, 3)
 
-        keypad_dialog.exec_()
+        # Add keypad to parent layout
+        parent_layout = entry_widget.parent().layout()
+        if parent_layout:
+            parent_layout.addWidget(self.keypad_frame)
 
+    # ----------------------------- Printer Setup -----------------------------
 
-    # ----------------------- Printer Setup ------------------------------------
-
-    
     def show_printer_setup(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Rec Setup")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(600)
+        content_widget = self.create_printer_setup_content()
+        self.show_sliding_panel(content_widget, "Printer Setup", "Printer Setup")
 
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(30, 30, 30, 30)
-        container_layout.setSpacing(14)
+    def create_printer_setup_content(self):
+        """Create the printer setup content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(30, 30, 30, 30)
 
         title = QLabel("Rec Setup")
         title.setStyleSheet("font: bold 12pt Arial; background-color: white;")
-        container_layout.addWidget(title)
+        layout.addWidget(title)
 
         # Variables (dicts to mimic StringVar)
         auto_format = {"value": "3x4"}
@@ -648,16 +768,14 @@ class ECGMenu(QGroupBox):
         def add_radiobutton_group(title, options, variable):
             group = QGroupBox(title)
             group.setStyleSheet("font: bold 12pt Arial; background-color: white;")
-            layout = QHBoxLayout(group)
-            layout.setSpacing(12)
+            group_layout = QHBoxLayout(group)
             for opt in options:
                 btn = QRadioButton(opt)
                 btn.setStyleSheet("font: 10pt Arial; background-color: white;")
                 btn.setChecked(variable["value"] == opt)
                 btn.toggled.connect(lambda checked, val=opt: variable.update({"value": val}) if checked else None)
-                layout.addWidget(btn)
-            container_layout.addWidget(group)
-            container_layout.addSpacing(6)
+                group_layout.addWidget(btn)
+            layout.addWidget(group)
 
         add_radiobutton_group("Auto Rec Format", ["3x4", "3x2+2x3"], auto_format)
         add_radiobutton_group("Analysis Result", ["on", "off"], analysis_result)
@@ -669,8 +787,6 @@ class ECGMenu(QGroupBox):
         rhythm_layout = QVBoxLayout(rhythm_group)
         row1 = QHBoxLayout()
         row2 = QHBoxLayout()
-        row1.setSpacing(8)
-        row2.setSpacing(8)
         lead_options = ["off", "I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
         for i, lead in enumerate(lead_options):
             btn = QRadioButton(lead)
@@ -683,77 +799,64 @@ class ECGMenu(QGroupBox):
                 row2.addWidget(btn)
         rhythm_layout.addLayout(row1)
         rhythm_layout.addLayout(row2)
-        container_layout.addWidget(rhythm_group)
-        container_layout.addSpacing(6)
+        layout.addWidget(rhythm_group)
 
         # Auto Time
         time_group = QGroupBox("Automatic Time (sec/Lead)")
         time_group.setStyleSheet("font: bold 12pt Arial; background-color: white;")
         time_layout = QVBoxLayout(time_group)
+
         time_entry = QLineEdit()
         time_entry.setReadOnly(True)
         time_entry.setText("3")
         time_entry.setStyleSheet("font: 10pt Arial; background-color: white;")
-        time_entry.setFixedWidth(60)
-        time_entry.setAlignment(Qt.AlignLeft)
+        time_entry.mousePressEvent = lambda event: self.open_keypad(time_entry)
         time_layout.addWidget(time_entry)
-        container_layout.addWidget(time_group)
-        container_layout.addSpacing(6)
+        layout.addWidget(time_group)
 
         # Sensitivity Group
         sens_group = QGroupBox("Analysis Sensitivity")
         sens_group.setStyleSheet("font: bold 12pt Arial; background-color: white;")
         sens_layout = QHBoxLayout(sens_group)
-        sens_layout.setSpacing(12)
         for val in ["Low", "Med", "High"]:
             btn = QRadioButton(val)
             btn.setStyleSheet("font: 10pt Arial; background-color: white;")
             btn.setChecked(sensitivity["value"] == val)
             btn.toggled.connect(lambda checked, v=val: sensitivity.update({"value": v}) if checked else None)
             sens_layout.addWidget(btn)
-        container_layout.addWidget(sens_group)
-        container_layout.addSpacing(8)
+        layout.addWidget(sens_group)
 
         # Buttons
         btn_frame = QFrame()
         btn_layout = QHBoxLayout(btn_frame)
-        btn_layout.setSpacing(16)
 
         ok_btn = QPushButton("OK")
         ok_btn.setFixedWidth(150)
         ok_btn.setStyleSheet("font: 12pt Arial;")
-        ok_btn.clicked.connect(lambda: QMessageBox.information(dialog, "Saved", "Printer setup saved"))
+        ok_btn.clicked.connect(lambda: QMessageBox.information(self.parent(), "Saved", "Printer setup saved"))
         btn_layout.addWidget(ok_btn)
 
         exit_btn = QPushButton("Exit")
         exit_btn.setFixedWidth(150)
         exit_btn.setStyleSheet("font: 12pt Arial; background-color: red; color: white;")
-        exit_btn.clicked.connect(dialog.reject)
+        exit_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
         btn_layout.addWidget(exit_btn)
 
-        container_layout.addWidget(btn_frame)
+        layout.addWidget(btn_frame)
+        
+        return widget
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
-
-        dialog.exec_()
-
-
-    # ----------------------- Set Filter Setup ------------------------------------
-    
+    # ----------------------------- Set Filter -----------------------------
 
     def set_filter_setup(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Set Filter")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
+        content_widget = self.create_filter_setup_content()
+        self.show_sliding_panel(content_widget, "Filter Settings", "Set Filter")
 
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        layout = QVBoxLayout(container)
+    def create_filter_setup_content(self):
+        """Create the filter setup content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(14)
 
         title = QLabel("Set Filter")
         title.setStyleSheet("font: bold 14pt Arial; background-color: white;")
@@ -763,7 +866,6 @@ class ECGMenu(QGroupBox):
             group = QGroupBox(title_text)
             group.setStyleSheet("font: bold 12pt Arial; background-color: white;")
             hbox = QHBoxLayout(group)
-            hbox.setSpacing(12)
             for text, val in options:
                 btn = QRadioButton(text)
                 btn.setStyleSheet("font: 11pt Arial; background-color: white;")
@@ -771,7 +873,6 @@ class ECGMenu(QGroupBox):
                 btn.toggled.connect(lambda checked, v=val: current_value_dict.update({"value": v}) if checked else None)
                 hbox.addWidget(btn)
             layout.addWidget(group)
-            layout.addSpacing(6)
 
         ac_var = {"value": "50Hz"}
         ac_options = [("off", "off"), ("50Hz", "50Hz"), ("60Hz", "60Hz")]
@@ -786,136 +887,136 @@ class ECGMenu(QGroupBox):
         add_filter_box("DFT Filter", dft_options, dft_var)
 
         btn_frame = QHBoxLayout()
-        btn_frame.setSpacing(16)
         ok_btn = QPushButton("OK")
         ok_btn.setFixedWidth(100)
         ok_btn.setStyleSheet("font: 11pt Arial;")
-        ok_btn.clicked.connect(lambda: QMessageBox.information(dialog, "Saved", "Filter settings saved"))
+        ok_btn.clicked.connect(lambda: print("Saved"))
         btn_frame.addWidget(ok_btn)
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setFixedWidth(100)
         cancel_btn.setStyleSheet("font: 11pt Arial; background-color: red; color: white;")
-        cancel_btn.clicked.connect(dialog.reject)
+        cancel_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
         btn_frame.addWidget(cancel_btn)
 
         layout.addLayout(btn_frame)
-
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
-
-        dialog.exec_()
-
-
-    # ----------------------- System Setup ------------------------------------
-
+        
+        return widget
 
     def show_system_setup(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("System Setup")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
+        
+        content_widget = self.create_system_setup_content()
+        self.show_sliding_panel(content_widget, "System Setup", "System Setup")
 
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        layout = QVBoxLayout(container)
+    def show_load_default(self):
+        
+        content_widget = self.create_load_default_content()
+        self.show_sliding_panel(content_widget, "Load Default Settings", "Load Default")
+
+    def show_version_info(self):
+        
+        content_widget = self.create_version_info_content()
+        self.show_sliding_panel(content_widget, "Version Information", "Version")
+
+    def show_factory_maintain(self):
+        
+        content_widget = self.create_factory_maintain_content()
+        self.show_sliding_panel(content_widget, "Factory Maintenance", "Factory Maintain")
+
+    # ----------------------------- System Setup -----------------------------
+
+    def create_system_setup_content(self):
+        """Create the system setup content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(14)
 
         title = QLabel("System Setup")
         title.setStyleSheet("font: bold 14pt Arial; background-color: gray; color: white;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
+        inner_frame = QFrame()
+        inner_layout = QVBoxLayout(inner_frame)
+        inner_frame.setStyleSheet("background-color: white;")
+
         # --- BEAT VOL Block ---
         beat_vol_var = {"value": "on"}
         beat_frame = QGroupBox("BEAT VOL")
-        beat_frame.setStyleSheet("font: bold 11pt Arial; background-color: #f0f0f0;")
+        beat_frame.setStyleSheet("font: bold 11pt Arial; background-color: lightgray;")
         beat_inner = QHBoxLayout(beat_frame)
-        beat_inner.setSpacing(12)
+
         def make_radio(text, val, var_dict):
             btn = QRadioButton(text)
             btn.setStyleSheet("font: 10pt Arial; background-color: white;")
             btn.setChecked(var_dict["value"] == val)
             btn.toggled.connect(lambda checked, v=val: var_dict.update({"value": v}) if checked else None)
             return btn
+
         beat_inner.addWidget(make_radio("Off", "off", beat_vol_var))
         beat_inner.addWidget(make_radio("On", "on", beat_vol_var))
-        layout.addWidget(beat_frame)
-        layout.addSpacing(8)
+        inner_layout.addWidget(beat_frame)
 
         # --- LANGUAGE Block ---
         lang_var = {"value": "English"}
         lang_frame = QGroupBox("LANGUAGE")
-        lang_frame.setStyleSheet("font: bold 11pt Arial; background-color: #f0f0f0;")
+        lang_frame.setStyleSheet("font: bold 11pt Arial; background-color: lightgray;")
         lang_inner = QHBoxLayout(lang_frame)
-        lang_inner.setSpacing(12)
         lang_inner.addWidget(make_radio("English", "English", lang_var))
         lang_inner.addWidget(make_radio("Hindi", "Hindi", lang_var))
-        layout.addWidget(lang_frame)
-        layout.addSpacing(8)
+        inner_layout.addWidget(lang_frame)
 
-        # --- Time Setup Button ---
+        layout.addWidget(inner_frame)
+
+        # Time Setup Button
         time_btn = QPushButton("Time Setup >>")
         time_btn.setFixedHeight(40)
         time_btn.setStyleSheet("font: 12pt Arial; background-color: navy; color: white;")
+        time_btn.clicked.connect(lambda: self.show_time_setup_inside(widget))
         layout.addWidget(time_btn)
 
-        # --- OK/Cancel Buttons ---
+        # OK/Cancel
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(16)
         ok_btn = QPushButton("OK")
-        ok_btn.setFixedSize(120, 40)
+        ok_btn.setFixedSize(180, 40)
         ok_btn.setStyleSheet("font: 11pt Arial;")
         def save_settings():
-            QMessageBox.information(dialog, "Saved", f"Settings saved successfully!\nBEAT VOL: {beat_vol_var['value']}\nLANGUAGE: {lang_var['value']}")
-            dialog.accept()
+            QMessageBox.information(self.parent(), "Saved", f"Settings saved successfully!\nBEAT VOL: {beat_vol_var['value']}\nLANGUAGE: {lang_var['value']}")
         ok_btn.clicked.connect(save_settings)
 
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedSize(120, 40)
-        cancel_btn.setStyleSheet("font: 11pt Arial; background-color: red; color: white;")
-        cancel_btn.clicked.connect(dialog.reject)
+        cancel_btn.setFixedSize(180, 40)
+        cancel_btn.setStyleSheet("font: 11pt Arial;")
+        cancel_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
+
         btn_row.addWidget(ok_btn)
         btn_row.addWidget(cancel_btn)
         layout.addLayout(btn_row)
+        
+        return widget
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
-
-        # --- Time Setup Button Action ---
-        time_btn.clicked.connect(lambda: self.show_time_setup_inside(dialog))
-
-        dialog.exec_()
-
-    def show_time_setup_inside(self, parent_dialog=None):
-        dialog = QDialog(parent_dialog if parent_dialog else self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Time Setup")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(350)
-
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(12)
-
-        title = QLabel("Time Setup")
-        title.setStyleSheet("font: bold 13pt Arial; background-color: #f0f0f0;")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
+    def show_time_setup_inside(self, container):
+        """Show time setup inside the system setup container"""
+        # Clear existing content except title
+        for i in reversed(range(container.layout().count())):
+            if i == 0: continue  # preserve title/header
+            item = container.layout().itemAt(i)
+            if item.widget(): 
+                item.widget().deleteLater()
 
         fields = [("Year", "2025"), ("Month", "06"), ("Day", "17"),
                 ("Hour", "12"), ("Minute", "00"), ("Second", "00")]
+        
         entries = {}
+        time_frame = QFrame()
+        time_layout = QVBoxLayout(time_frame)
+        time_frame.setStyleSheet("background-color: white;")
+        time_layout.setSpacing(10)
 
         for label, default in fields:
             row = QHBoxLayout()
-            row.setSpacing(10)
             lbl = QLabel(label)
-            lbl.setFixedWidth(70)
+            lbl.setFixedWidth(80)
             lbl.setStyleSheet("font: bold 11pt Arial; background-color: white;")
             entry = QLineEdit()
             entry.setFixedWidth(100)
@@ -924,44 +1025,32 @@ class ECGMenu(QGroupBox):
             entries[label] = entry
             row.addWidget(lbl)
             row.addWidget(entry)
-            layout.addLayout(row)
+            time_layout.addLayout(row)
+
+        container.layout().addWidget(time_frame)
 
         # Buttons
         btn_frame = QHBoxLayout()
-        btn_frame.setSpacing(16)
         ok_btn = QPushButton("OK")
-        ok_btn.setFixedSize(100, 36)
+        ok_btn.setFixedSize(180, 40)
         ok_btn.setStyleSheet("font: 11pt Arial;")
         ok_btn.clicked.connect(lambda: [e.setDisabled(True) for e in entries.values()])
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedSize(100, 36)
-        cancel_btn.setStyleSheet("font: 11pt Arial; background-color: red; color: white;")
-        cancel_btn.clicked.connect(dialog.reject)
+        cancel_btn.setFixedSize(180, 40)
+        cancel_btn.setStyleSheet("font: 11pt Arial;")
+        cancel_btn.clicked.connect(lambda: self.create_system_setup_content())  # Recreate system setup
         btn_frame.addWidget(ok_btn)
         btn_frame.addWidget(cancel_btn)
-        layout.addLayout(btn_frame)
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
+        container.layout().addLayout(btn_frame)
 
-        dialog.exec_()
+    # ----------------------------- Load Default -----------------------------
 
-
-    # ----------------------- Load Default ------------------------------------
-
-
-    def show_load_default(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Factory Default Config")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
-
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        layout = QVBoxLayout(container)
+    def create_load_default_content(self):
+        """Create the load default content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(16)
 
         title = QLabel("HINT")
         title.setStyleSheet("font: bold 14pt Arial; background-color: gray; color: white;")
@@ -971,55 +1060,43 @@ class ECGMenu(QGroupBox):
         label1 = QLabel("Adopt Factory Default Config?")
         label1.setStyleSheet("font: bold 12pt Arial; background-color: white;")
         label1.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label1)
 
         label2 = QLabel("The Previous Configure Will Be Lost!")
         label2.setStyleSheet("font: 10pt Arial; background-color: white; color: red;")
         label2.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(label1)
         layout.addWidget(label2)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(20)
 
         btn_no = QPushButton("No")
         btn_no.setFixedSize(100, 40)
         btn_no.setStyleSheet("font: 11pt Arial; background-color: navy; color: white;")
-        btn_no.clicked.connect(dialog.reject)
-        btn_row.addWidget(btn_no)
+        btn_no.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
 
         btn_yes = QPushButton("Yes")
         btn_yes.setFixedSize(100, 40)
         btn_yes.setStyleSheet("font: 11pt Arial;")
         def apply_default_config():
-            QMessageBox.information(dialog, "Done", "Factory defaults applied successfully.")
-            dialog.accept()
+            QMessageBox.information(self.parent(), "Done", "Factory defaults applied successfully.")
+            self.hide_sliding_panel()  # Close the sliding panel after applying defaults
         btn_yes.clicked.connect(apply_default_config)
+
+        btn_row.addWidget(btn_no)
         btn_row.addWidget(btn_yes)
 
         layout.addLayout(btn_row)
+        
+        return widget
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
+    # ----------------------------- Version Info -----------------------------
 
-        dialog.exec_()
-
-
-
-    # ----------------------- Version info ------------------------------------
-
-
-    def show_version_info(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Version Info")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
-
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        layout = QVBoxLayout(container)
+    def create_version_info_content(self):
+        """Create the version info content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(14)
 
         title = QLabel("Version Info")
         title.setStyleSheet("font: bold 14pt Arial; background-color: gray; color: white;")
@@ -1049,40 +1126,27 @@ class ECGMenu(QGroupBox):
         btn = QPushButton("Exit")
         btn.setFixedHeight(40)
         btn.setStyleSheet("font: 11pt Arial; background-color: skyblue;")
-        btn.clicked.connect(dialog.accept)
+        btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
 
         layout.addWidget(btn, alignment=Qt.AlignCenter)
+        
+        return widget
+    
+    # ----------------------------- Factory Maintain -----------------------------
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
-
-        dialog.exec_()
-
-
-    # ----------------------- Factory Maintain ------------------------------------
-
-
-    def show_factory_maintain(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Factory Maintain")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
-
-        container = QFrame()
-        container.setStyleSheet("background-color: white; border: 1px solid black;")
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(50, 50, 50, 50)
-        container_layout.setSpacing(18)
+    def create_factory_maintain_content(self):
+        """Create the factory maintenance content widget - matching original design"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(50, 50, 50, 50)
 
         title = QLabel("Enter Maintain Password")
         title.setStyleSheet("font: bold 14pt Arial; background-color: gray; color: white;")
         title.setAlignment(Qt.AlignCenter)
-        container_layout.addWidget(title)
+        layout.addWidget(title)
 
         form = QFrame()
-        form_layout = QHBoxLayout()
-        form.setLayout(form_layout)
+        form_layout = QHBoxLayout(form)
         label = QLabel("Factory Key:")
         label.setStyleSheet("font: bold 12pt Arial; background-color: white;")
         form_layout.addWidget(label)
@@ -1093,37 +1157,27 @@ class ECGMenu(QGroupBox):
         key_input.setAlignment(Qt.AlignCenter)
         form_layout.addWidget(key_input)
 
-        # Placeholder text logic
         def on_entry_click():
             if key_input.text() == "0-999999":
                 key_input.setText("")
                 key_input.setStyleSheet("font: 12pt Arial; color: black;")
+
         def on_focus_out():
             if key_input.text().strip() == "":
                 key_input.setText("0-999999")
                 key_input.setStyleSheet("font: 12pt Arial; color: gray;")
 
-        def focus_in_event(event):
-            on_entry_click()
-            QLineEdit.focusInEvent(key_input, event)
+        key_input.focusInEvent = lambda event: (on_entry_click(), QLineEdit.focusInEvent(key_input, event))
+        key_input.focusOutEvent = lambda event: (on_focus_out(), QLineEdit.focusOutEvent(key_input, event))
 
-        def focus_out_event(event):
-            on_focus_out()
-            QLineEdit.focusOutEvent(key_input, event)
+        layout.addWidget(form)
 
-        key_input.focusInEvent = focus_in_event
-        key_input.focusOutEvent = focus_out_event
-
-        container_layout.addWidget(form)
-
-        # Confirm button logic
         def on_confirm():
             val = key_input.text()
             if val.isdigit() and 0 <= int(val) <= 999999:
-                QMessageBox.information(dialog, "Confirmed", f"Key Accepted: {val}")
-                dialog.accept()
+                QMessageBox.information(self.parent(), "Confirmed", f"Key Accepted: {val}")
             else:
-                QMessageBox.critical(dialog, "Invalid", "Please enter a valid number between 0 and 999999.")
+                QMessageBox.critical(self.parent(), "Invalid", "Please enter a valid number between 0 and 999999.")
 
         btn_frame = QVBoxLayout()
         confirm_btn = QPushButton("Confirm")
@@ -1135,61 +1189,118 @@ class ECGMenu(QGroupBox):
         exit_btn = QPushButton("Exit")
         exit_btn.setFixedHeight(40)
         exit_btn.setStyleSheet("font: 12pt Arial; background-color: red; color: white;")
-        exit_btn.clicked.connect(dialog.reject)
+        exit_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
         btn_frame.addWidget(exit_btn)
 
-        container_layout.addLayout(btn_frame)
+        layout.addLayout(btn_frame)
+        
+        return widget
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
-
-        dialog.exec_()
-
-
-
-    # ----------------------- Exit ------------------------------------
-
-
+    # ----------------------------- Exit -----------------------------
 
     def show_exit(self):
-        dialog = QDialog(self.dashboard if self.dashboard else self)
-        dialog.setWindowTitle("Exit Confirmation")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
+        content_widget = self.create_exit_content()
+        self.show_sliding_panel(content_widget, "Exit Application")
 
-        container = QFrame()
-        container.setStyleSheet("background-color: white;")
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(50, 50, 50, 50)
-        layout.setSpacing(24)
+    def create_exit_content(self):
+        """Create the exit content widget - enhanced design with larger boxes"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(25)
 
-        label = QLabel("Do you really want to exit?")
-        label.setStyleSheet("font: 16pt Arial; color: black; background-color: white;")
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
+        title = QLabel("Exit Application")
+        title.setStyleSheet("""
+            QLabel {
+                font: bold 24pt Arial;
+                color: white;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #666666, stop:1 #888888);
+                border: 4px solid #666666;
+                border-radius: 20px;
+                padding: 25px;
+                margin: 10px;
+            }
+        """)
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
 
-        btn_yes = QPushButton("Yes - Exit")
-        btn_yes.setStyleSheet("font: 12pt Arial; background-color: red; color: white;")
-        btn_yes.setFixedWidth(200)
+        # Main content frame with larger size
+        content_frame = QFrame()
+        content_frame.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 4px solid #e0e0e0;
+                border-radius: 20px;
+                padding: 35px;
+                min-height: 200px;
+            }
+        """)
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setSpacing(25)
 
-        def handle_exit():
-            dialog.accept()
-            if self.dashboard and hasattr(self.dashboard, "go_to_dashboard"):
-                self.dashboard.go_to_dashboard()
-            # Do NOT close or hide the ECG widget here!
+        message = QLabel("Are you sure you want to exit the application?")
+        message.setStyleSheet("""
+            QLabel {
+                font: bold 20pt Arial;
+                color: #333333;
+                background: transparent;
+                padding: 25px;
+                min-height: 50px;
+            }
+        """)
+        message.setAlignment(Qt.AlignCenter)
+        content_layout.addWidget(message)
 
-        btn_yes.clicked.connect(handle_exit)
-        layout.addWidget(btn_yes, alignment=Qt.AlignCenter)
+        layout.addWidget(content_frame)
 
-        btn_no = QPushButton("No - Back")
-        btn_no.setStyleSheet("font: 12pt Arial; background-color: green; color: white;")
-        btn_no.setFixedWidth(200)
-        btn_no.clicked.connect(dialog.reject)
-        layout.addWidget(btn_no, alignment=Qt.AlignCenter)
+        # Enhanced buttons with larger size
+        button_frame = QFrame()
+        button_frame.setStyleSheet("background: transparent; margin: 25px;")
+        button_layout = QHBoxLayout(button_frame)
+        button_layout.setSpacing(30)
 
-        dialog_layout = QVBoxLayout()
-        dialog.setLayout(dialog_layout)
-        dialog_layout.addWidget(container)
+        yes_btn = QPushButton("Yes")
+        yes_btn.setFixedSize(160, 70)
+        yes_btn.setStyleSheet("""
+            QPushButton {
+                font: bold 20pt Arial;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f44336, stop:1 #d32f2f);
+                color: white;
+                border: 3px solid #f44336;
+                border-radius: 15px;
+                padding: 20px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d32f2f, stop:1 #f44336);
+            }
+            QPushButton:pressed {
+                background: #c62828;
+            }
+        """)
+        yes_btn.clicked.connect(lambda: QApplication.quit())
 
-        dialog.exec_()
+        no_btn = QPushButton("No")
+        no_btn.setFixedSize(160, 70)
+        no_btn.setStyleSheet("""
+            QPushButton {
+                font: bold 20pt Arial;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 3px solid #4CAF50;
+                border-radius: 15px;
+                padding: 20px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #45a049, stop:1 #4CAF50);
+            }
+            QPushButton:pressed {
+                background: #3d8b40;
+            }
+        """)
+        no_btn.clicked.connect(lambda: self.hide_sliding_panel())
+
+        button_layout.addWidget(yes_btn)
+        button_layout.addWidget(no_btn)
+        layout.addWidget(button_frame)
+
+        return widget

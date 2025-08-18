@@ -243,7 +243,7 @@ class ECGTestPage(QWidget):
         self.center_on_screen()
         self.stacked_widget = stacked_widget  # Save reference for navigation
 
-        self.settings_manager = SettingsManager() 
+        self.settings_manager = SettingsManager()
 
         self.grid_widget = QWidget()
         self.detailed_widget = QWidget()
@@ -338,7 +338,11 @@ class ECGTestPage(QWidget):
         if self.ecg_menu.parent():
             self.ecg_menu.setParent(None)
 
+        self.ecg_menu.settings_changed_callback = self.on_settings_changed 
 
+        self.apply_display_settings()
+
+    
         menu_buttons = [
             ("Save ECG", self.ecg_menu.show_save_ecg, "#28a745"),
             ("Open ECG", self.ecg_menu.open_ecg_window, "#17a2b8"),
@@ -509,13 +513,6 @@ class ECGTestPage(QWidget):
         main_vbox.setSpacing(16)
         main_vbox.setContentsMargins(24, 24, 24, 24)
 
-        # Add section dividers
-        def create_section_divider(title):
-            divider = QFrame()
-            divider.setFrameShape(QFrame.HLine)
-            divider.setStyleSheet("QFrame { border: 1px solid #e9ecef; margin: 16px 0; }")
-            return divider
-
         self.update_lead_layout()
 
         btn_layout = QHBoxLayout()
@@ -571,10 +568,73 @@ class ECGTestPage(QWidget):
         # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
 
         main_hbox = QHBoxLayout(self.grid_widget)
+    
+        # Add widgets to the layout
         main_hbox.addWidget(menu_container, 0)  # Fixed width for menu
-        main_hbox.addLayout(main_vbox, 1)  # Give main_vbox more space
+        main_hbox.addLayout(main_vbox, 2)  # Give main_vbox more space
+        
+        # Set spacing and layout
         main_hbox.setSpacing(15)  # Add spacing between menu and main content
         self.grid_widget.setLayout(main_hbox)
+        
+        # Initial settings display update
+        QTimer.singleShot(100, self.apply_display_settings)
+
+    def on_settings_changed(self, key, value):
+        
+        print(f"Setting changed: {key} = {value}")
+        
+        if key in ["wave_speed", "wave_gain"]:
+            # Apply new settings immediately
+            self.apply_display_settings()
+            
+            # CRITICAL: Update all lead titles IMMEDIATELY
+            self.update_all_lead_titles()
+            
+            # Force redraw of all plots
+            self.redraw_all_plots()
+            
+            print(f"Settings applied and titles updated for {key} = {value}")
+
+    def update_all_lead_titles(self):
+        
+        current_speed = self.settings_manager.get_wave_speed()
+        current_gain = self.settings_manager.get_wave_gain()
+        
+        print(f"Updating titles: Speed={current_speed}mm/s, Gain={current_gain}mm/mV")
+        
+        for i, lead in enumerate(self.leads):
+            if i < len(self.axs):
+                new_title = f"{lead} | Speed: {current_speed}mm/s | Gain: {current_gain}mm/mV"
+                self.axs[i].set_title(new_title, fontsize=8, color='#666', pad=10)
+                print(f"Updated {lead} title: {new_title}")
+        
+        # Force redraw of all canvases
+        for canvas in self.canvases:
+            if canvas:
+                canvas.draw_idle()
+
+    def apply_display_settings(self):
+        
+        wave_speed = self.settings_manager.get_wave_speed()
+        wave_gain = self.settings_manager.get_wave_gain()
+        
+        # Update buffer size based on wave speed
+        # Higher speed = more samples per second = larger buffer for same time window
+        base_buffer = 2000
+        speed_factor = wave_speed / 50.0  # 50mm/s is baseline
+        self.buffer_size = int(base_buffer * speed_factor)
+        
+        # Update y-axis limits based on gain
+        # Higher gain = larger amplitude display
+        base_ylim = 400
+        gain_factor = wave_gain / 10.0  # 10mm/mV is baseline
+        self.ylim = int(base_ylim * gain_factor)
+
+        # Force immediate redraw of all plots with new settings
+        self.redraw_all_plots()
+        
+        print(f"Applied settings: speed={wave_speed}mm/s, gain={wave_gain}mm/mV, buffer={self.buffer_size}, ylim={self.ylim}")
 
     # ------------------------ Show help dialog ------------------------
 
@@ -874,18 +934,30 @@ class ECGTestPage(QWidget):
         def update_detailed_plot():
             detailed_buffer_size = 500  # Reduced to 500 samples for real-time effect
             data = get_lead_data()
+
+            current_gain = self.settings_manager.get_wave_gain()
+            current_speed = self.settings_manager.get_wave_speed()
+
             # Robust: Only plot if enough data, else show blank
             if data and len(data) >= 10:
                 plot_data = np.array(data[-detailed_buffer_size:])
                 x = np.arange(len(plot_data))
                 centered = plot_data - np.mean(plot_data)
+
+                # Apply current gain setting
+                gain_factor = float(current_gain) / 10.0
+                centered = centered * gain_factor
+
                 line.set_data(x, centered)
                 ax.set_xlim(0, max(len(centered)-1, 1))
-                ymin = np.min(centered) - 100
-                ymax = np.max(centered) + 100
+                
+                ylim = 500 * gain_factor
+                ymin = np.min(centered) - ylim * 0.2
+                ymax = np.max(centered) + ylim * 0.2
                 if ymin == ymax:
-                    ymin, ymax = -500, 500
+                    ymin, ymax = -ylim, ylim
                 ax.set_ylim(ymin, ymax)
+
                 # --- PQRST detection and green labeling for Lead II only ---
                 # Remove all extra lines except the main ECG line (robust for all Matplotlib versions)
                 try:
@@ -1086,7 +1158,8 @@ class ECGTestPage(QWidget):
             fig = Figure(facecolor='#fafbfc', figsize=(6, 2.5))
             ax = fig.add_subplot(111)
             ax.set_facecolor('#fafbfc')
-            ax.set_ylim(-400, 400)
+            ylim = self.ylim if hasattr(self, 'ylim') else 400
+            ax.set_ylim(-ylim, ylim)
             ax.set_xlim(0, self.buffer_size)
             
             # Modern grid styling
@@ -1123,6 +1196,45 @@ class ECGTestPage(QWidget):
             return lambda event: self.expand_lead(idx)
         for i, canvas in enumerate(self.canvases):
             canvas.mpl_connect('button_press_event', make_expand_lead(i))
+
+    def redraw_all_plots(self):
+        
+        if hasattr(self, 'lines') and self.lines:
+            for i, line in enumerate(self.lines):
+                if i < len(self.leads):
+                    lead = self.leads[i]
+                    data = self.data.get(lead, [])
+                    
+                    if len(data) > 0:
+                        # Apply current settings to the real data
+                        gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                        centered = (np.array(data) - np.nanmean(data)) * gain_factor
+                        
+                        # Update line data with new buffer size
+                        if len(centered) < self.buffer_size:
+                            plot_data = np.full(self.buffer_size, np.nan)
+                            plot_data[-len(centered):] = centered
+                        else:
+                            plot_data = centered[-self.buffer_size:]
+                        
+                        line.set_ydata(plot_data)
+                        
+                        # Update axis limits based on current settings
+                        if i < len(self.axs):
+                            ylim = self.ylim if hasattr(self, 'ylim') else 400
+                            self.axs[i].set_ylim(-ylim, ylim)
+                            self.axs[i].set_xlim(0, self.buffer_size)
+                            
+                            # Update plot title with current settings
+                            current_speed = self.settings_manager.get_wave_speed()
+                            current_gain = self.settings_manager.get_wave_gain()
+                            new_title = f"{lead} | Speed: {current_speed}mm/s | Gain: {current_gain}mm/mV"
+                            self.axs[i].set_title(new_title, fontsize=8, color='#666', pad=10)
+                            print(f"Redraw updated {lead} title: {new_title}")
+                        
+                        # Redraw canvas
+                        if i < len(self.canvases):
+                            self.canvases[i].draw_idle()
 
     # ---------------------- Start Button Functionality ----------------------
 
@@ -1305,11 +1417,28 @@ class ECGTestPage(QWidget):
                         data = np.array(self.data[lead])
                     
                     centered = data - np.nanmean(data)
-                    
+
+                    # Apply current gain setting to the real data
+                    gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                    centered = (data - np.nanmean(data)) * gain_factor
                     
                     self.lines[i].set_ydata(centered)
-                    self.axs[i].set_ylim(-400, 400)
+                    
+                    # Use dynamic y-limits based on current gain setting
+                    ylim = self.ylim if hasattr(self, 'ylim') else 400
+                    self.axs[i].set_ylim(-ylim, ylim)
+                    
+                    # Use dynamic x-limits based on current buffer size
                     self.axs[i].set_xlim(0, self.buffer_size)
+
+                    # Update title with current settings
+                    current_speed = self.settings_manager.get_wave_speed()
+                    current_gain = self.settings_manager.get_wave_gain()
+                    self.axs[i].set_title(f"{lead} | Speed: {current_speed}mm/s | Gain: {current_gain}mm/mV", 
+                                        fontsize=8, color='#666', pad=10)
+                    
+                    # Add grid lines to show scale
+                    self.axs[i].grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
                     
                     # Remove any existing labels
                     self.axs[i].set_xlabel("")
@@ -1371,5 +1500,415 @@ class ECGTestPage(QWidget):
         self._sequential_win = win
 
     def show_all_leads_overlay(self):
-        from ecg.lead_sequential_view import LeadSequentialView
-        self._all_leads_win = LeadSequentialView.show_all_leads(self.leads, self.data, buffer_size=500)
+        # If overlay is already shown, hide it and restore original layout
+        if hasattr(self, '_overlay_active') and self._overlay_active:
+            self._restore_original_layout()
+            return
+        
+        # Store the original plot area layout
+        self._store_original_layout()
+        
+        # Create the overlay widget
+        self._create_overlay_widget()
+        
+        # Replace the plot area with overlay
+        self._replace_plot_area_with_overlay()
+        
+        # Mark overlay as active
+        self._overlay_active = True
+
+    def _store_original_layout(self):
+        """Store the current plot area layout for later restoration"""
+        # Store the current plot area widget
+        self._original_plot_area = self.plot_area
+        
+        # Store the current layout
+        self._original_layout = self.plot_area.layout()
+        
+        # Store the current figures, canvases, axes, and lines
+        self._original_figures = getattr(self, 'figures', [])
+        self._original_canvases = getattr(self, 'canvases', [])
+        self._original_axs = getattr(self, 'axs', [])
+        self._original_lines = getattr(self, 'lines', [])
+
+    def _create_overlay_widget(self):
+        """Create the overlay widget with all 12 leads"""
+        from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFrame
+        
+        # Create overlay container
+        self._overlay_widget = QWidget()
+        self._overlay_widget.setStyleSheet("""
+            QWidget {
+                background: #000;
+                border: 2px solid #ff6600;
+                border-radius: 15px;
+            }
+        """)
+        
+        # Main layout for overlay
+        overlay_layout = QVBoxLayout(self._overlay_widget)
+        overlay_layout.setContentsMargins(20, 20, 20, 20)
+        overlay_layout.setSpacing(15)
+        
+        # Top control panel with close button
+        top_panel = QFrame()
+        top_panel.setStyleSheet("""
+            QFrame {
+                background: rgba(255, 255, 255, 0.1);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 15px;
+                padding: 10px;
+            }
+        """)
+        top_layout = QHBoxLayout(top_panel)
+        top_layout.setContentsMargins(15, 10, 15, 10)
+        top_layout.setSpacing(20)
+        
+        # Close button
+        close_btn = QPushButton("Close Overlay")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 2px solid #ff6600;
+                border-radius: 10px;
+                padding: 10px 20px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 2px solid #ff8c42;
+            }
+        """)
+        close_btn.clicked.connect(self._restore_original_layout)
+        
+        # Mode control buttons
+        light_mode_btn = QPushButton("Light Mode")
+        dark_mode_btn = QPushButton("Dark Mode")
+        graph_mode_btn = QPushButton("Graph Mode")
+        
+        button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+            }
+        """
+        
+        light_mode_btn.setStyleSheet(button_style)
+        dark_mode_btn.setStyleSheet(button_style)
+        graph_mode_btn.setStyleSheet(button_style)
+        
+        # Add widgets to top panel
+        top_layout.addWidget(close_btn)
+        top_layout.addStretch()
+        top_layout.addWidget(light_mode_btn)
+        top_layout.addWidget(dark_mode_btn)
+        top_layout.addWidget(top_layout.addWidget(graph_mode_btn))
+        
+        overlay_layout.addWidget(top_panel)
+        
+        # Create the matplotlib figure with all leads
+        self._create_overlay_figure(overlay_layout)
+        
+        # Connect mode buttons
+        light_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("light"))
+        dark_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("dark"))
+        graph_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("graph"))
+        
+        # Apply default dark mode
+        self._apply_overlay_mode("dark")
+
+    def _create_overlay_figure(self, overlay_layout):
+        """Create the matplotlib figure with all 12 leads"""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        import numpy as np
+        
+        # Create figure with all leads
+        num_leads = len(self.leads)
+        fig = Figure(figsize=(14, num_leads * 1.8), facecolor='#000')
+        self._overlay_axes = []
+        self._overlay_lines = []
+        
+        for idx, lead in enumerate(self.leads):
+            ax = fig.add_subplot(num_leads, 1, idx+1)
+            ax.set_facecolor('#000')
+            ax.tick_params(axis='x', colors='#00ff00')
+            ax.tick_params(axis='y', colors='#00ff00')
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            ax.set_ylabel(lead, color='#00ff00', fontsize=14, labelpad=15)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            line, = ax.plot(np.arange(self.buffer_size), [np.nan]*self.buffer_size, color="#00ff00", lw=2.0)
+            self._overlay_axes.append(ax)
+            self._overlay_lines.append(line)
+        
+        self._overlay_canvas = FigureCanvas(fig)
+        overlay_layout.addWidget(self._overlay_canvas)
+        
+        # Start update timer for overlay
+        self._overlay_timer = QTimer(self)
+        self._overlay_timer.timeout.connect(self._update_overlay_plots)
+        self._overlay_timer.start(100)
+
+    def _update_overlay_plots(self):
+        """Update all overlay plots with current data"""
+        if not hasattr(self, '_overlay_lines') or not self._overlay_lines:
+            return
+        
+        for idx, lead in enumerate(self.leads):
+            if idx < len(self._overlay_lines):
+                data = self.data.get(lead, [])
+                line = self._overlay_lines[idx]
+                ax = self._overlay_axes[idx]
+                
+                plot_data = np.full(self.buffer_size, np.nan)
+                
+                if data and len(data) > 0:
+                    n = min(len(data), self.buffer_size)
+                    centered = np.array(data[-n:]) - np.mean(data[-n:])
+                    
+                    # Apply current gain setting
+                    gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                    centered = centered * gain_factor
+                    
+                    if n < self.buffer_size:
+                        stretched = np.interp(
+                            np.linspace(0, n-1, self.buffer_size),
+                            np.arange(n),
+                            centered
+                        )
+                        plot_data[:] = stretched
+                    else:
+                        plot_data[-n:] = centered
+                    
+                    ymin = np.min(centered) - 100
+                    ymax = np.max(centered) + 100
+                    if ymin == ymax:
+                        ymin, ymax = -500, 500
+                    ax.set_ylim(ymin, ymax)
+                else:
+                    ax.set_ylim(-500, 500)
+                
+                ax.set_xlim(0, self.buffer_size-1)
+                line.set_ydata(plot_data)
+        
+        if hasattr(self, '_overlay_canvas'):
+            self._overlay_canvas.draw_idle()
+
+    def _apply_overlay_mode(self, mode):
+        """Apply different display modes to overlay"""
+        if not hasattr(self, '_overlay_axes') or not self._overlay_axes:
+            return
+        
+        # First, remove any existing background images from graph mode
+        for ax in self._overlay_axes:
+            if hasattr(ax, '_background_image'):
+                try:
+                    ax._background_image.remove()
+                    delattr(ax, '_background_image')
+                except:
+                    pass
+        
+        if mode == "light":
+            self._overlay_widget.setStyleSheet("""
+                QWidget {
+                    background: rgba(255, 255, 255, 0.95);
+                    border: 2px solid #ff6600;
+                    border-radius: 15px;
+                }
+            """)
+            
+            for ax in self._overlay_axes:
+                ax.set_facecolor('#ffffff')
+                # Set tick colors to dark for visibility
+                ax.tick_params(axis='x', colors='#ffffff', labelsize=10)
+                ax.tick_params(axis='y', colors='#ffffff', labelsize=10)
+                # Set ylabel with better contrast and ensure it's visible
+                ax.set_ylabel(ax.get_ylabel(), color='#ffffff', fontsize=14, fontweight='bold', labelpad=15)
+                # Make spines visible with dark color
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('#ffffff')
+                    spine.set_linewidth(1.0)
+                # Clear any existing text and redraw
+                ax.figure.canvas.draw()
+            
+            for line in self._overlay_lines:
+                line.set_color('#0066cc')
+                line.set_linewidth(2.0)
+        
+        elif mode == "dark":
+            self._overlay_widget.setStyleSheet("""
+                QWidget {
+                    background: rgba(0, 0, 0, 0.95);
+                    border: 2px solid #ff6600;
+                    border-radius: 15px;
+                }
+            """)
+            
+            for ax in self._overlay_axes:
+                ax.set_facecolor('#000')
+                ax.tick_params(axis='x', colors='#00ff00', labelsize=10)
+                ax.tick_params(axis='y', colors='#00ff00', labelsize=10)
+                ax.set_ylabel(ax.get_ylabel(), color='#00ff00', fontsize=14, fontweight='bold', labelpad=15)
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
+            
+            for line in self._overlay_lines:
+                line.set_color('#00ff00')
+                line.set_linewidth(2.0)
+        
+        elif mode == "graph":
+            # Apply graph mode with background image if available
+            self._apply_graph_mode()
+        
+        if hasattr(self, '_overlay_canvas'):
+            self._overlay_canvas.draw()
+
+    def _apply_graph_mode(self):
+        """Apply graph mode with background image"""
+        try:
+            import os
+            from PyQt5.QtGui import QPixmap
+            import matplotlib.image as mpimg
+            
+            bg_path = "ecg_bgimg.png"
+            if os.path.exists(bg_path):
+                bg_img = QPixmap(bg_path)
+                if not bg_img.isNull():
+                    temp_path = "temp_bg.png"
+                    bg_img.save(temp_path)
+                    bg_matplotlib = mpimg.imread(temp_path)
+                    
+                    for ax in self._overlay_axes:
+                        ax.set_facecolor('#ffffff')
+                        ax.tick_params(axis='x', colors='#ffffff')
+                        ax.tick_params(axis='y', colors='#ffffff')
+                        ax.set_ylabel(ax.get_ylabel(), color='#ffffff', fontsize=14, labelpad=15)
+                        for spine in ax.spines.values():
+                            spine.set_visible(True)
+                            spine.set_color('#ffffff')
+                        
+                        # Remove previous background if exists
+                        if hasattr(ax, '_background_image'):
+                            try:
+                                ax._background_image.remove()
+                            except:
+                                pass
+                        
+                        ax._background_image = ax.imshow(bg_matplotlib, extent=[0, self.buffer_size-1, -500, 500], 
+                                                    aspect='auto', alpha=0.4, zorder=0)
+                    
+                    for line in self._overlay_lines:
+                        line.set_color('#ff0000')
+                        line.set_linewidth(2.5)
+                    
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                else:
+                    self._apply_overlay_mode("light")
+            else:
+                self._apply_overlay_mode("light")
+                
+        except Exception as e:
+            print(f"Error applying graph mode: {e}")
+            self._apply_overlay_mode("light")
+
+    def _replace_plot_area_with_overlay(self):
+        """Replace the current plot area with the overlay widget"""
+        # Get the main horizontal layout
+        main_layout = self.grid_widget.layout()
+        
+        # Find the main_vbox layout item (which contains the plot_area)
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if item.layout() and hasattr(item.layout(), 'indexOf') and item.layout().indexOf(self.plot_area) >= 0:
+                # Found the layout containing plot_area
+                main_vbox_layout = item.layout()
+                
+                # Find and replace the plot_area in main_vbox_layout
+                plot_area_index = main_vbox_layout.indexOf(self.plot_area)
+                if plot_area_index >= 0:
+                    # Remove the plot_area
+                    main_vbox_layout.removeWidget(self.plot_area)
+                    self.plot_area.hide()
+                    
+                    # Add the overlay widget at the same position
+                    main_vbox_layout.insertWidget(plot_area_index, self._overlay_widget)
+                    return
+        
+        # Fallback: if we can't find the exact position, add to the end of main_vbox
+        # Find the main_vbox layout
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if item.layout() and hasattr(item.layout(), 'indexOf') and item.layout().indexOf(self.plot_area) >= 0:
+                main_vbox_layout = item.layout()
+                main_vbox_layout.removeWidget(self.plot_area)
+                self.plot_area.hide()
+                main_vbox_layout.addWidget(self._overlay_widget)
+                break
+
+    def _restore_original_layout(self):
+        """Restore the original 12-lead grid layout"""
+        if not hasattr(self, '_overlay_active') or not self._overlay_active:
+            return
+        
+        # Stop overlay timer
+        if hasattr(self, '_overlay_timer'):
+            self._overlay_timer.stop()
+            self._overlay_timer.deleteLater()
+        
+        # Find and remove overlay widget from main_vbox layout
+        main_layout = self.grid_widget.layout()
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if item.layout() and hasattr(item.layout(), 'indexOf'):
+                main_vbox_layout = item.layout()
+                
+                # Check if overlay widget is in this layout
+                overlay_index = main_vbox_layout.indexOf(self._overlay_widget)
+                if overlay_index >= 0:
+                    # Remove overlay widget
+                    main_vbox_layout.removeWidget(self._overlay_widget)
+                    
+                    # Restore original plot area at the exact same position
+                    main_vbox_layout.insertWidget(overlay_index, self.plot_area)
+                    self.plot_area.show()
+                    break
+        
+        # Clean up overlay references
+        if hasattr(self, '_overlay_widget'):
+            self._overlay_widget.deleteLater()
+            delattr(self, '_overlay_widget')
+        
+        if hasattr(self, '_overlay_axes'):
+            delattr(self, '_overlay_axes')
+        
+        if hasattr(self, '_overlay_lines'):
+            delattr(self, '_overlay_lines')
+        
+        if hasattr(self, '_overlay_canvas'):
+            delattr(self, '_overlay_canvas')
+        
+        # Mark overlay as inactive
+        self._overlay_active = False
+        
+        # Force redraw of original plots
+        self.redraw_all_plots()

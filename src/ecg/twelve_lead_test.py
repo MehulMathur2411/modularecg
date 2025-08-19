@@ -524,6 +524,46 @@ class ECGTestPage(QWidget):
         self.ecg_plot_btn = QPushButton("Open ECG Live Plot")
         self.sequential_btn = QPushButton("Show All Leads Sequentially")
         self.all_leads_btn = QPushButton("Show All Leads Overlay")
+
+        green_color = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                min-height: 32px;
+                min-width: 100px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+                color: white;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+            }
+            QPushButton:pressed {
+                background: #3d8b40;
+                border: 2px solid #3d8b40;
+                transform: translateY(0px);
+            }
+        """
+        
+        # Apply medical green style to all buttons
+        self.start_btn.setStyleSheet(green_color)
+        self.stop_btn.setStyleSheet(green_color)
+        self.export_pdf_btn.setStyleSheet(green_color)
+        self.export_csv_btn.setStyleSheet(green_color)
+        self.back_btn.setStyleSheet(green_color)
+        self.ecg_plot_btn.setStyleSheet(green_color)
+        self.sequential_btn.setStyleSheet(green_color)
+        self.all_leads_btn.setStyleSheet(green_color)
+
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
         btn_layout.addWidget(self.export_pdf_btn)
@@ -1473,6 +1513,10 @@ class ECGTestPage(QWidget):
                     writer.writerow(row)
 
     def go_back(self):
+
+        if hasattr(self, '_overlay_active') and self._overlay_active:
+            self._restore_original_layout()
+
         # Go back to dashboard (assumes dashboard is at index 0)
         self.stacked_widget.setCurrentIndex(0)
 
@@ -1517,8 +1561,10 @@ class ECGTestPage(QWidget):
         # Mark overlay as active
         self._overlay_active = True
 
+        self._apply_current_overlay_mode()
+
     def _store_original_layout(self):
-        """Store the current plot area layout for later restoration"""
+        
         # Store the current plot area widget
         self._original_plot_area = self.plot_area
         
@@ -1532,7 +1578,7 @@ class ECGTestPage(QWidget):
         self._original_lines = getattr(self, 'lines', [])
 
     def _create_overlay_widget(self):
-        """Create the overlay widget with all 12 leads"""
+        
         from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFrame
         
         # Create overlay container
@@ -1586,10 +1632,13 @@ class ECGTestPage(QWidget):
         """)
         close_btn.clicked.connect(self._restore_original_layout)
         
-        # Mode control buttons
-        light_mode_btn = QPushButton("Light Mode")
-        dark_mode_btn = QPushButton("Dark Mode")
-        graph_mode_btn = QPushButton("Graph Mode")
+        # Mode control buttons with highlighting
+        self.light_mode_btn = QPushButton("Light Mode")
+        self.dark_mode_btn = QPushButton("Dark Mode")
+        self.graph_mode_btn = QPushButton("Graph Mode")
+        
+        # Store current mode for highlighting
+        self._current_overlay_mode = "dark"  # Default mode
         
         button_style = """
             QPushButton {
@@ -1609,16 +1658,35 @@ class ECGTestPage(QWidget):
             }
         """
         
-        light_mode_btn.setStyleSheet(button_style)
-        dark_mode_btn.setStyleSheet(button_style)
-        graph_mode_btn.setStyleSheet(button_style)
+        active_button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 3px solid #ff6600;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+                box-shadow: 0 4px 12px rgba(255,102,0,0.4);
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 3px solid #ff8c42;
+            }
+        """
+        
+        self.light_mode_btn.setStyleSheet(button_style)
+        self.dark_mode_btn.setStyleSheet(button_style)
+        self.graph_mode_btn.setStyleSheet(button_style)
         
         # Add widgets to top panel
         top_layout.addWidget(close_btn)
         top_layout.addStretch()
-        top_layout.addWidget(light_mode_btn)
-        top_layout.addWidget(dark_mode_btn)
-        top_layout.addWidget(top_layout.addWidget(graph_mode_btn))
+        top_layout.addWidget(self.light_mode_btn)
+        top_layout.addWidget(self.dark_mode_btn)
+        top_layout.addWidget(self.graph_mode_btn)
         
         overlay_layout.addWidget(top_panel)
         
@@ -1626,36 +1694,44 @@ class ECGTestPage(QWidget):
         self._create_overlay_figure(overlay_layout)
         
         # Connect mode buttons
-        light_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("light"))
-        dark_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("dark"))
-        graph_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("graph"))
+        self.light_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("light"))
+        self.dark_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("dark"))
+        self.graph_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("graph"))
         
-        # Apply default dark mode
+        # Apply default dark mode and highlight it
         self._apply_overlay_mode("dark")
 
     def _create_overlay_figure(self, overlay_layout):
-        """Create the matplotlib figure with all 12 leads"""
+        
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         import numpy as np
         
-        # Create figure with all leads
+        # Create figure with all leads - adjust spacing for better visibility
         num_leads = len(self.leads)
-        fig = Figure(figsize=(14, num_leads * 1.8), facecolor='#000')
+        fig = Figure(figsize=(16, num_leads * 2.2), facecolor='none')  # Changed to transparent
+        
+        # Adjust subplot parameters for better spacing
+        fig.subplots_adjust(left=0.05, right=0.95, top=0.98, bottom=0.02, hspace=0.15)
+        
         self._overlay_axes = []
         self._overlay_lines = []
         
         for idx, lead in enumerate(self.leads):
             ax = fig.add_subplot(num_leads, 1, idx+1)
-            ax.set_facecolor('#000')
-            ax.tick_params(axis='x', colors='#00ff00')
-            ax.tick_params(axis='y', colors='#00ff00')
+            ax.set_facecolor('none')  # Changed to transparent
+            
+            # Remove all borders and spines
             for spine in ax.spines.values():
                 spine.set_visible(False)
-            ax.set_ylabel(lead, color='#00ff00', fontsize=14, labelpad=15)
+            
+            # Remove all ticks and labels for cleaner look
             ax.set_xticks([])
             ax.set_yticks([])
-            line, = ax.plot(np.arange(self.buffer_size), [np.nan]*self.buffer_size, color="#00ff00", lw=2.0)
+            ax.set_ylabel(lead, color='#00ff00', fontsize=12, fontweight='bold', labelpad=20)
+            
+            # Create line with initial data
+            line, = ax.plot(np.arange(self.buffer_size), [np.nan]*self.buffer_size, color="#00ff00", lw=1.5)
             self._overlay_axes.append(ax)
             self._overlay_lines.append(line)
         
@@ -1668,7 +1744,7 @@ class ECGTestPage(QWidget):
         self._overlay_timer.start(100)
 
     def _update_overlay_plots(self):
-        """Update all overlay plots with current data"""
+        
         if not hasattr(self, '_overlay_lines') or not self._overlay_lines:
             return
         
@@ -1698,35 +1774,88 @@ class ECGTestPage(QWidget):
                     else:
                         plot_data[-n:] = centered
                     
+                    # Set dynamic y-limits based on data
                     ymin = np.min(centered) - 100
                     ymax = np.max(centered) + 100
                     if ymin == ymax:
                         ymin, ymax = -500, 500
+                    
+                    # Ensure y-limits are reasonable
+                    ymin = max(-1000, ymin)
+                    ymax = min(1000, ymax)
+                    
                     ax.set_ylim(ymin, ymax)
                 else:
                     ax.set_ylim(-500, 500)
                 
+                # Set x-limits
                 ax.set_xlim(0, self.buffer_size-1)
                 line.set_ydata(plot_data)
         
         if hasattr(self, '_overlay_canvas'):
             self._overlay_canvas.draw_idle()
 
+    def _apply_current_overlay_mode(self):
+
+        if hasattr(self, '_current_overlay_mode'):
+            self._apply_overlay_mode(self._current_overlay_mode)
+
     def _apply_overlay_mode(self, mode):
-        """Apply different display modes to overlay"""
+        
         if not hasattr(self, '_overlay_axes') or not self._overlay_axes:
             return
         
-        # First, remove any existing background images from graph mode
-        for ax in self._overlay_axes:
-            if hasattr(ax, '_background_image'):
-                try:
-                    ax._background_image.remove()
-                    delattr(ax, '_background_image')
-                except:
-                    pass
+        # Store current mode
+        self._current_overlay_mode = mode
         
+        self._clear_all_backgrounds()
+        
+        # Update button highlighting
+        button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+            }
+        """
+        
+        active_button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 3px solid #ff6600;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+                box-shadow: 0 4px 12px rgba(255,102,0,0.4);
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 3px solid #ff8c42;
+            }
+        """
+        
+        # Reset all buttons to normal style
+        self.light_mode_btn.setStyleSheet(button_style)
+        self.dark_mode_btn.setStyleSheet(button_style)
+        self.graph_mode_btn.setStyleSheet(button_style)
+        
+        # Highlight the active button
         if mode == "light":
+            self.light_mode_btn.setStyleSheet(active_button_style)
             self._overlay_widget.setStyleSheet("""
                 QWidget {
                     background: rgba(255, 255, 255, 0.95);
@@ -1737,17 +1866,13 @@ class ECGTestPage(QWidget):
             
             for ax in self._overlay_axes:
                 ax.set_facecolor('#ffffff')
-                # Set tick colors to dark for visibility
-                ax.tick_params(axis='x', colors='#ffffff', labelsize=10)
-                ax.tick_params(axis='y', colors='#ffffff', labelsize=10)
-                # Set ylabel with better contrast and ensure it's visible
-                ax.set_ylabel(ax.get_ylabel(), color='#ffffff', fontsize=14, fontweight='bold', labelpad=15)
-                # Make spines visible with dark color
+                ax.tick_params(axis='x', colors='#333333', labelsize=10)
+                ax.tick_params(axis='y', colors='#333333', labelsize=10)
+                ax.set_ylabel(ax.get_ylabel(), color='#333333', fontsize=14, fontweight='bold', labelpad=15)
                 for spine in ax.spines.values():
                     spine.set_visible(True)
-                    spine.set_color('#ffffff')
+                    spine.set_color('#333333')
                     spine.set_linewidth(1.0)
-                # Clear any existing text and redraw
                 ax.figure.canvas.draw()
             
             for line in self._overlay_lines:
@@ -1755,6 +1880,7 @@ class ECGTestPage(QWidget):
                 line.set_linewidth(2.0)
         
         elif mode == "dark":
+            self.dark_mode_btn.setStyleSheet(active_button_style)
             self._overlay_widget.setStyleSheet("""
                 QWidget {
                     background: rgba(0, 0, 0, 0.95);
@@ -1776,63 +1902,132 @@ class ECGTestPage(QWidget):
                 line.set_linewidth(2.0)
         
         elif mode == "graph":
-            # Apply graph mode with background image if available
+            self.graph_mode_btn.setStyleSheet(active_button_style)
             self._apply_graph_mode()
         
         if hasattr(self, '_overlay_canvas'):
             self._overlay_canvas.draw()
 
+    def _clear_all_backgrounds(self):
+        
+        try:
+            # Clear figure-level background
+            if hasattr(self, '_overlay_canvas') and self._overlay_canvas.figure:
+                fig = self._overlay_canvas.figure
+                if hasattr(fig, '_figure_background'):
+                    try:
+                        fig._figure_background.remove()
+                        delattr(fig, '_figure_background')
+                    except:
+                        pass
+                
+                # Reset figure background to transparent
+                fig.patch.set_facecolor('none')
+            
+            # Clear axis-level backgrounds
+            if hasattr(self, '_overlay_axes'):
+                for ax in self._overlay_axes:
+                    if hasattr(ax, '_background_image'):
+                        try:
+                            ax._background_image.remove()
+                            delattr(ax, '_background_image')
+                        except:
+                            pass
+                    
+                    # Reset axis background to transparent
+                    ax.set_facecolor('none')
+                    ax.patch.set_alpha(0.0)
+                    
+        except Exception as e:
+            print(f"Error clearing backgrounds: {e}")
+
     def _apply_graph_mode(self):
-        """Apply graph mode with background image"""
+        
         try:
             import os
             from PyQt5.QtGui import QPixmap
             import matplotlib.image as mpimg
             
-            bg_path = "ecg_bgimg.png"
+            bg_path = "ecg_bgimg_test.png"
             if os.path.exists(bg_path):
+                # Load the background image
                 bg_img = QPixmap(bg_path)
                 if not bg_img.isNull():
+                    # Save temporary file for matplotlib
                     temp_path = "temp_bg.png"
                     bg_img.save(temp_path)
                     bg_matplotlib = mpimg.imread(temp_path)
                     
-                    for ax in self._overlay_axes:
-                        ax.set_facecolor('#ffffff')
-                        ax.tick_params(axis='x', colors='#ffffff')
-                        ax.tick_params(axis='y', colors='#ffffff')
-                        ax.set_ylabel(ax.get_ylabel(), color='#ffffff', fontsize=14, labelpad=15)
-                        for spine in ax.spines.values():
-                            spine.set_visible(True)
-                            spine.set_color('#ffffff')
+                    # Apply background to the entire figure first
+                    if hasattr(self, '_overlay_canvas') and self._overlay_canvas.figure:
+                        fig = self._overlay_canvas.figure
+                        fig.patch.set_facecolor('#ffffff')  # White background for the figure
                         
-                        # Remove previous background if exists
-                        if hasattr(ax, '_background_image'):
+                        # Remove any existing background from figure
+                        if hasattr(fig, '_figure_background'):
                             try:
-                                ax._background_image.remove()
+                                fig._figure_background.remove()
                             except:
                                 pass
                         
-                        ax._background_image = ax.imshow(bg_matplotlib, extent=[0, self.buffer_size-1, -500, 500], 
-                                                    aspect='auto', alpha=0.4, zorder=0)
+                        # Apply background image to the entire figure
+                        fig._figure_background = fig.figimage(
+                            bg_matplotlib, 
+                            xo=0, yo=0, 
+                            alpha=0.4,  # Slightly transparent so waves are visible
+                            zorder=0
+                        )
                     
+                    # Apply background to all axes
+                    for i, ax in enumerate(self._overlay_axes):
+                        # Set transparent background for subplots
+                        ax.set_facecolor('none')
+                        ax.patch.set_alpha(0.0)
+                        
+                        # Remove all borders and spines
+                        for spine in ax.spines.values():
+                            spine.set_visible(False)
+                        
+                        # Remove ticks for cleaner look
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        
+                        # Set label color to dark for better visibility on grid background
+                        ax.set_ylabel(ax.get_ylabel(), color='#333333', fontsize=12, fontweight='bold', labelpad=20)
+                        
+                        # Set proper limits
+                        ax.set_xlim(0, self.buffer_size-1)
+                        ax.set_ylim(-500, 500)
+                    
+                    # Change line colors to dark red for better visibility on grid background
                     for line in self._overlay_lines:
-                        line.set_color('#ff0000')
+                        line.set_color('#cc0000')  # Darker red
                         line.set_linewidth(2.5)
+                        line.set_alpha(1.0)
                     
+                    # Clean up temporary file
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
+                    
+                    # Force redraw
+                    if hasattr(self, '_overlay_canvas'):
+                        self._overlay_canvas.draw()
+                        
+                    return
+                        
                 else:
-                    self._apply_overlay_mode("light")
+                    print("Failed to load background image")
+                    return
             else:
-                self._apply_overlay_mode("light")
+                print(f"Background image not found at: {bg_path}")
+                return
                 
         except Exception as e:
             print(f"Error applying graph mode: {e}")
-            self._apply_overlay_mode("light")
+            return
 
     def _replace_plot_area_with_overlay(self):
-        """Replace the current plot area with the overlay widget"""
+        
         # Get the main horizontal layout
         main_layout = self.grid_widget.layout()
         
@@ -1866,7 +2061,7 @@ class ECGTestPage(QWidget):
                 break
 
     def _restore_original_layout(self):
-        """Restore the original 12-lead grid layout"""
+        
         if not hasattr(self, '_overlay_active') or not self._overlay_active:
             return
         

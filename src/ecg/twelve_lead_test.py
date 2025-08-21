@@ -243,7 +243,7 @@ class ECGTestPage(QWidget):
         self.center_on_screen()
         self.stacked_widget = stacked_widget  # Save reference for navigation
 
-        self.settings_manager = SettingsManager() 
+        self.settings_manager = SettingsManager()
 
         self.grid_widget = QWidget()
         self.detailed_widget = QWidget()
@@ -264,12 +264,7 @@ class ECGTestPage(QWidget):
         self.axs = []
         self.canvases = []
 
-        # Add Back button at the top
-        back_btn = QPushButton("Back")
-        back_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 10px; padding: 8px 24px; font-size: 16px; font-weight: bold;")
-        back_btn.clicked.connect(self.go_back)
         main_vbox = QVBoxLayout()
-        main_vbox.addWidget(back_btn, alignment=Qt.AlignLeft)
 
         menu_frame = QGroupBox("Menu")
 
@@ -328,6 +323,8 @@ class ECGTestPage(QWidget):
         # Create ECGMenu instance to use its methods
         self.ecg_menu = ECGMenu(parent=self, dashboard=self.stacked_widget.parent())
 
+        self.ecg_menu.settings_manager = self.settings_manager
+
         # Initialize sliding panel for the ECG menu
         self.ecg_menu.sliding_panel = None
         self.ecg_menu.parent_widget = self
@@ -338,7 +335,11 @@ class ECGTestPage(QWidget):
         if self.ecg_menu.parent():
             self.ecg_menu.setParent(None)
 
+        self.ecg_menu.settings_changed_callback = self.on_settings_changed 
 
+        self.apply_display_settings()
+
+    
         menu_buttons = [
             ("Save ECG", self.ecg_menu.show_save_ecg, "#28a745"),
             ("Open ECG", self.ecg_menu.open_ecg_window, "#17a2b8"),
@@ -491,30 +492,28 @@ class ECGTestPage(QWidget):
         self.recording_frames = []
 
 
-        conn_layout = QHBoxLayout()
-        self.port_combo = QComboBox()
-        self.baud_combo = QComboBox()
-        self.baud_combo.addItem("Select Baud Rate")
-        self.baud_combo.addItems(["9600", "19200", "38400", "57600", "115200"])
-        conn_layout.addWidget(QLabel("Serial Port:"))
-        conn_layout.addWidget(self.port_combo)
-        conn_layout.addWidget(QLabel("Baud Rate:"))
-        conn_layout.addWidget(self.baud_combo)
-        self.refresh_ports()
-        main_vbox.addLayout(conn_layout)
+        # conn_layout = QHBoxLayout()
+        # self.port_combo = QComboBox()
+        # self.baud_combo = QComboBox()
+        # self.baud_combo.addItem("Select Baud Rate")
+        # self.baud_combo.addItems(["9600", "19200", "38400", "57600", "115200"])
+        # conn_layout.addWidget(QLabel("Serial Port:"))
+        # conn_layout.addWidget(self.port_combo)
+        # conn_layout.addWidget(QLabel("Baud Rate:"))
+        # conn_layout.addWidget(self.baud_combo)
+        # self.refresh_ports()
+        # main_vbox.addLayout(conn_layout)
 
         self.plot_area = QWidget()
+
+        # Add metrics frame above the plot area
+        self.metrics_frame = self.create_metrics_frame()
+        main_vbox.addWidget(self.metrics_frame)
+
         main_vbox.addWidget(self.plot_area)
 
         main_vbox.setSpacing(16)
         main_vbox.setContentsMargins(24, 24, 24, 24)
-
-        # Add section dividers
-        def create_section_divider(title):
-            divider = QFrame()
-            divider.setFrameShape(QFrame.HLine)
-            divider.setStyleSheet("QFrame { border: 1px solid #e9ecef; margin: 16px 0; }")
-            return divider
 
         self.update_lead_layout()
 
@@ -527,6 +526,46 @@ class ECGTestPage(QWidget):
         self.ecg_plot_btn = QPushButton("Open ECG Live Plot")
         self.sequential_btn = QPushButton("Show All Leads Sequentially")
         self.all_leads_btn = QPushButton("Show All Leads Overlay")
+
+        green_color = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                min-height: 32px;
+                min-width: 100px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+                color: white;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+            }
+            QPushButton:pressed {
+                background: #3d8b40;
+                border: 2px solid #3d8b40;
+                transform: translateY(0px);
+            }
+        """
+        
+        # Apply medical green style to all buttons
+        self.start_btn.setStyleSheet(green_color)
+        self.stop_btn.setStyleSheet(green_color)
+        self.export_pdf_btn.setStyleSheet(green_color)
+        self.export_csv_btn.setStyleSheet(green_color)
+        self.back_btn.setStyleSheet(green_color)
+        self.ecg_plot_btn.setStyleSheet(green_color)
+        self.sequential_btn.setStyleSheet(green_color)
+        self.all_leads_btn.setStyleSheet(green_color)
+
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
         btn_layout.addWidget(self.export_pdf_btn)
@@ -571,10 +610,210 @@ class ECGTestPage(QWidget):
         # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
 
         main_hbox = QHBoxLayout(self.grid_widget)
+    
+        # Add widgets to the layout
         main_hbox.addWidget(menu_container, 0)  # Fixed width for menu
-        main_hbox.addLayout(main_vbox, 1)  # Give main_vbox more space
+        main_hbox.addLayout(main_vbox, 2)  # Give main_vbox more space
+        
+        # Set spacing and layout
         main_hbox.setSpacing(15)  # Add spacing between menu and main content
         self.grid_widget.setLayout(main_hbox)
+        
+        # Initial settings display update
+        QTimer.singleShot(100, self.apply_display_settings)
+
+    def on_settings_changed(self, key, value):
+        
+        print(f"Setting changed: {key} = {value}")
+        
+        if key in ["wave_speed", "wave_gain"]:
+            # Apply new settings immediately
+            self.apply_display_settings()
+            
+            # CRITICAL: Update all lead titles IMMEDIATELY
+            self.update_all_lead_titles()
+            
+            # Force redraw of all plots
+            self.redraw_all_plots()
+            
+            print(f"Settings applied and titles updated for {key} = {value}")
+
+    def update_all_lead_titles(self):
+        
+        current_speed = self.settings_manager.get_wave_speed()
+        current_gain = self.settings_manager.get_wave_gain()
+        
+        print(f"Updating titles: Speed={current_speed}mm/s, Gain={current_gain}mm/mV")
+        
+        for i, lead in enumerate(self.leads):
+            if i < len(self.axs):
+                new_title = f"{lead} | Speed: {current_speed}mm/s | Gain: {current_gain}mm/mV"
+                self.axs[i].set_title(new_title, fontsize=8, color='#666', pad=10)
+                print(f"Updated {lead} title: {new_title}")
+        
+        # Force redraw of all canvases
+        for canvas in self.canvases:
+            if canvas:
+                canvas.draw_idle()
+
+    def apply_display_settings(self):
+        
+        wave_speed = self.settings_manager.get_wave_speed()
+        wave_gain = self.settings_manager.get_wave_gain()
+        
+        # Update buffer size based on wave speed
+        # Higher speed = more samples per second = larger buffer for same time window
+        base_buffer = 2000
+        speed_factor = wave_speed / 50.0  # 50mm/s is baseline
+        self.buffer_size = int(base_buffer * speed_factor)
+        
+        # Update y-axis limits based on gain
+        # Higher gain = larger amplitude display
+        base_ylim = 400
+        gain_factor = wave_gain / 10.0  # 10mm/mV is baseline
+        self.ylim = int(base_ylim * gain_factor)
+
+        # Force immediate redraw of all plots with new settings
+        self.redraw_all_plots()
+        
+        print(f"Applied settings: speed={wave_speed}mm/s, gain={wave_gain}mm/mV, buffer={self.buffer_size}, ylim={self.ylim}")
+
+    # ------------------------ Update Metrics on the top of the lead graphs ------------------------
+
+    def create_metrics_frame(self):
+        metrics_frame = QFrame()
+        metrics_frame.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                padding: 4px;
+                margin: 2px 0;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }
+        """)
+        
+        metrics_layout = QHBoxLayout(metrics_frame)
+        metrics_layout.setSpacing(10)
+        metrics_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Store metric labels for live update
+        self.metric_labels = {}
+        metric_info = [
+            ("Heart Rate", "--", "bpm", "heart_rate"),
+            ("PR Interval", "--", "ms", "pr_interval"),
+            ("QRS Duration", "--", "ms", "qrs_duration"),
+            ("QTc Interval", "--", "ms", "qtc_interval"),
+            ("QRS Axis", "--", "°", "qrs_axis"),
+            ("ST Segment", "--", "", "st_segment"),
+        ]
+        
+        for title, value, unit, key in metric_info:
+            metric_widget = QWidget()
+            metric_widget.setStyleSheet("""
+                QWidget {
+                    background: transparent;
+                    min-width: 120px;
+                }
+            """)
+            
+            # Create vertical layout for the metric widget
+            box = QVBoxLayout(metric_widget)
+            box.setSpacing(3)
+            box.setAlignment(Qt.AlignCenter)
+            
+            # Title label
+            lbl = QLabel(title)
+            lbl.setFont(QFont("Arial", 9, QFont.Bold))
+            lbl.setStyleSheet("color: #666; margin-bottom: 5px;")
+            lbl.setAlignment(Qt.AlignCenter)
+            
+            # Value label
+            val = QLabel(f"{value} {unit}")
+            val.setFont(QFont("Arial", 14, QFont.Bold))
+            val.setStyleSheet("color: #ff6600; background: transparent; padding: 4px 0px;")
+            val.setAlignment(Qt.AlignCenter)
+            
+            # Add labels to the metric widget's layout
+            box.addWidget(lbl)
+            box.addWidget(val)
+            
+            # Add the metric widget to the horizontal layout
+            metrics_layout.addWidget(metric_widget)
+            
+            # Store reference for live update
+            self.metric_labels[key] = val
+        
+        return metrics_frame
+
+    def update_ecg_metrics_on_top_of_lead_graphs(self, intervals):
+        if 'Heart_Rate' in intervals and intervals['Heart_Rate'] is not None:
+            self.metric_labels['heart_rate'].setText(
+                f"{int(round(intervals['Heart_Rate']))} bpm" if isinstance(intervals['Heart_Rate'], (int, float)) else str(intervals['Heart_Rate'])
+            )
+        if 'PR' in intervals and intervals['PR'] is not None:
+            self.metric_labels['pr_interval'].setText(
+                f"{int(round(intervals['PR']))} ms" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR'])
+            )
+        if 'QRS' in intervals and intervals['QRS'] is not None:
+            self.metric_labels['qrs_duration'].setText(
+                f"{int(round(intervals['QRS']))} ms" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS'])
+            )
+        if 'QTc' in intervals and intervals['QTc'] is not None:
+            if isinstance(intervals['QTc'], (int, float)) and intervals['QTc'] >= 0:
+                self.metric_labels['qtc_interval'].setText(f"{int(round(intervals['QTc']))} ms")
+            else:
+                self.metric_labels['qtc_interval'].setText("-- ms")
+        if 'QRS_axis' in intervals and intervals['QRS_axis'] is not None:
+            self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
+        if 'ST' in intervals and intervals['ST'] is not None:
+            self.metric_labels['st_segment'].setText(
+                f"{int(round(intervals['ST']))} ms" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST'])
+            )
+
+    def calculate_ecg_intervals(self, lead_ii_data):
+        if not lead_ii_data or len(lead_ii_data) < 100:
+            return {}
+        
+        try:
+            from ecg.pan_tompkins import pan_tompkins
+            
+            # Convert to numpy array
+            data = np.array(lead_ii_data)
+            
+            # Detect R peaks using Pan-Tompkins algorithm
+            r_peaks = pan_tompkins(data, fs=500)  # 500Hz sampling rate
+            
+            if len(r_peaks) < 2:
+                return {}
+            
+            # Calculate heart rate
+            rr_intervals = np.diff(r_peaks) / 500.0  # Convert to seconds
+            mean_rr = np.mean(rr_intervals)
+            heart_rate = 60 / mean_rr if mean_rr > 0 else 0
+            
+            # Calculate intervals
+            pr_interval = 0.16  
+            qrs_duration = 0.08  
+            qt_interval = 0.4    
+            qtc_interval = 0.42  
+            qrs_axis = "--"      
+            st_segment = 0.12    
+            
+            return {
+                'Heart_Rate': heart_rate,
+                'PR': pr_interval * 1000,  # Convert to ms
+                'QRS': qrs_duration * 1000,
+                'QT': qt_interval * 1000,
+                'QTc': qtc_interval * 1000,
+                'QRS_axis': qrs_axis,
+                'ST': st_segment * 1000
+            }
+            
+        except Exception as e:
+            print(f"Error calculating ECG intervals: {e}")
+            return {}
 
     # ------------------------ Show help dialog ------------------------
 
@@ -583,7 +822,7 @@ class ECGTestPage(QWidget):
         <h3>12-Lead ECG Monitor Help</h3>
         <p><b>Getting Started:</b></p>
         <ul>
-        <li>Select a COM port and baud rate</li>
+        <li>Configure serial port and baud rate in System Setup</li>
         <li>Click 'Start' to begin recording</li>
         <li>Click on any lead to view it in detail</li>
         <li>Use the menu options for additional features</li>
@@ -750,54 +989,6 @@ class ECGTestPage(QWidget):
         qr.moveCenter(cp)
         self.move(qr.topLeft())
 
-    def show_12to1_graph(self):
-        win = QWidget()
-        win.setWindowTitle("12:1 ECG Graph")
-        layout = QVBoxLayout(win)
-        ordered_leads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
-        self._12to1_lines = {}
-        self._12to1_axes = {}
-        for lead in ordered_leads:
-            group = QGroup
-            group.setStyleSheet("QGroupBox { border: 2px solid rgba(0,0,0,0.2); border-radius: 8px; margin-top: 8px; }")
-            vbox = QVBoxLayout(group)
-            fig = Figure(figsize=(12, 2.5), facecolor='#000')
-            ax = fig.add_subplot(111)
-            ax.set_facecolor('#000')
-            ax.set_ylim(-400, 400)
-            ax.set_xlim(0, self.buffer_size)
-            line, = ax.plot([0]*self.buffer_size, color=self.LEAD_COLORS.get(lead, "#00ff99"), lw=2)
-            self._12to1_lines[lead] = line
-            self._12to1_axes[lead] = ax
-            canvas = FigureCanvas(fig)
-            vbox.addWidget(canvas)
-            layout.addWidget(group)
-        win.setLayout(layout)
-        win.resize(1400, 1200)
-        win.show()
-        self._12to1_win = win
-        self._12to1_timer = QTimer(self)
-        self._12to1_timer.timeout.connect(self.update_12to1_graph)
-        self._12to1_timer.start(100)
-        def stop_timer():
-            self._12to1_timer.stop()
-        win.destroyed.connect(stop_timer)
-
-    def update_12to1_graph(self):
-        for lead, line in self._12to1_lines.items():
-            data = self.data.get(lead, [])
-            ax = self._12to1_axes[lead]
-            if data:
-                n = min(len(data), self.buffer_size)
-                plot_data = np.full(self.buffer_size, np.nan)
-                centered = np.array(data[-n:]) - np.mean(data[-n:])
-                plot_data[-n:] = centered
-                line.set_ydata(plot_data)
-                ax.set_ylim(-400, 400)
-            else:
-                line.set_ydata([np.nan]*self.buffer_size)
-            ax.figure.canvas.draw_idle()
-
     def expand_lead(self, idx):
         lead = self.leads[idx]
         def get_lead_data():
@@ -874,18 +1065,30 @@ class ECGTestPage(QWidget):
         def update_detailed_plot():
             detailed_buffer_size = 500  # Reduced to 500 samples for real-time effect
             data = get_lead_data()
+
+            current_gain = self.settings_manager.get_wave_gain()
+            current_speed = self.settings_manager.get_wave_speed()
+
             # Robust: Only plot if enough data, else show blank
             if data and len(data) >= 10:
                 plot_data = np.array(data[-detailed_buffer_size:])
                 x = np.arange(len(plot_data))
                 centered = plot_data - np.mean(plot_data)
+
+                # Apply current gain setting
+                gain_factor = float(current_gain) / 10.0
+                centered = centered * gain_factor
+
                 line.set_data(x, centered)
                 ax.set_xlim(0, max(len(centered)-1, 1))
-                ymin = np.min(centered) - 100
-                ymax = np.max(centered) + 100
+                
+                ylim = 500 * gain_factor
+                ymin = np.min(centered) - ylim * 0.2
+                ymax = np.max(centered) + ylim * 0.2
                 if ymin == ymax:
-                    ymin, ymax = -500, 500
+                    ymin, ymax = -ylim, ylim
                 ax.set_ylim(ymin, ymax)
+
                 # --- PQRST detection and green labeling for Lead II only ---
                 # Remove all extra lines except the main ECG line (robust for all Matplotlib versions)
                 try:
@@ -1086,7 +1289,8 @@ class ECGTestPage(QWidget):
             fig = Figure(facecolor='#fafbfc', figsize=(6, 2.5))
             ax = fig.add_subplot(111)
             ax.set_facecolor('#fafbfc')
-            ax.set_ylim(-400, 400)
+            ylim = self.ylim if hasattr(self, 'ylim') else 400
+            ax.set_ylim(-ylim, ylim)
             ax.set_xlim(0, self.buffer_size)
             
             # Modern grid styling
@@ -1124,34 +1328,92 @@ class ECGTestPage(QWidget):
         for i, canvas in enumerate(self.canvases):
             canvas.mpl_connect('button_press_event', make_expand_lead(i))
 
+    def redraw_all_plots(self):
+        
+        if hasattr(self, 'lines') and self.lines:
+            for i, line in enumerate(self.lines):
+                if i < len(self.leads):
+                    lead = self.leads[i]
+                    data = self.data.get(lead, [])
+                    
+                    if len(data) > 0:
+                        # Apply current settings to the real data
+                        gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                        centered = (np.array(data) - np.nanmean(data)) * gain_factor
+                        
+                        # Update line data with new buffer size
+                        if len(centered) < self.buffer_size:
+                            plot_data = np.full(self.buffer_size, np.nan)
+                            plot_data[-len(centered):] = centered
+                        else:
+                            plot_data = centered[-self.buffer_size:]
+                        
+                        line.set_ydata(plot_data)
+                        
+                        # Update axis limits based on current settings
+                        if i < len(self.axs):
+                            ylim = self.ylim if hasattr(self, 'ylim') else 400
+                            self.axs[i].set_ylim(-ylim, ylim)
+                            self.axs[i].set_xlim(0, self.buffer_size)
+                            
+                            # Update plot title with current settings
+                            current_speed = self.settings_manager.get_wave_speed()
+                            current_gain = self.settings_manager.get_wave_gain()
+                            new_title = f"{lead} | Speed: {current_speed}mm/s | Gain: {current_gain}mm/mV"
+                            self.axs[i].set_title(new_title, fontsize=8, color='#666', pad=10)
+                            print(f"Redraw updated {lead} title: {new_title}")
+                        
+                        # Redraw canvas
+                        if i < len(self.canvases):
+                            self.canvases[i].draw_idle()
+
     # ---------------------- Start Button Functionality ----------------------
 
     def start_acquisition(self):
-        port = self.port_combo.currentText()
-        baud = self.baud_combo.currentText()
+        port = self.settings_manager.get_serial_port()
+        baud = self.settings_manager.get_baud_rate()
 
-        if port == "Select Port" or baud == "Select Baud Rate":
-            self.show_connection_warning()
+        print(f"Starting acquisition with Port: {port}, Baud: {baud}")
+
+        if port == "Select Port" or baud == "Select Baud Rate" or port is None or baud is None:
+            self.show_connection_warning("Please configure serial port and baud rate in System Setup first.")
             return
+        
         try:
+            # Convert baud rate to integer with error handling
+            try:
+                baud_int = int(baud)
+            except (ValueError, TypeError):
+                self.show_connection_warning(f"Invalid baud rate: {baud}. Please set a valid baud rate in System Setup.")
+                return
+            
             if self.serial_reader:
                 self.serial_reader.close()
-            self.serial_reader = SerialECGReader(port, int(baud))
+            
+            print(f"Connecting to {port} at {baud_int} baud...")
+            self.serial_reader = SerialECGReader(port, baud_int)
             self.serial_reader.start()
             self.timer.start(50)
             if hasattr(self, '_12to1_timer'):
                 self._12to1_timer.start(100)
+                
+            print("Serial connection established successfully!")
+            
         except Exception as e:
-            self.show_connection_warning(str(e))
+            error_msg = f"Failed to connect to {port} at {baud} baud: {str(e)}"
+            print(error_msg)
+            self.show_connection_warning(error_msg)
 
     # ---------------------- Stop Button Functionality ----------------------
 
     def stop_acquisition(self):
-        port = self.port_combo.currentText()
-        baud = self.baud_combo.currentText()
-        if port == "Select Port" or baud == "Select Baud Rate":
-            self.show_connection_warning()
+        port = self.settings_manager.get_serial_port()
+        baud = self.settings_manager.get_baud_rate()
+        
+        if port == "Select Port" or baud == "Select Baud Rate" or port is None or baud is None:
+            self.show_connection_warning("Please configure serial port and baud rate in System Setup first.")
             return
+            
         if self.serial_reader:
             self.serial_reader.stop()
         self.timer.stop()
@@ -1295,6 +1557,11 @@ class ECGTestPage(QWidget):
             except Exception as e:
                 print("Error writing lead_ii_live.json:", e)
             
+            # Calculate and update ECG metrics in real-time
+            lead_ii_data = self.data.get("II", [])
+            if lead_ii_data:
+                intervals = self.calculate_ecg_intervals(lead_ii_data)
+                self.update_ecg_metrics_on_top_of_lead_graphs(intervals)
             
             for i, lead in enumerate(self.leads):
                 if len(self.data[lead]) > 0:
@@ -1305,11 +1572,28 @@ class ECGTestPage(QWidget):
                         data = np.array(self.data[lead])
                     
                     centered = data - np.nanmean(data)
-                    
+
+                    # Apply current gain setting to the real data
+                    gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                    centered = (data - np.nanmean(data)) * gain_factor
                     
                     self.lines[i].set_ydata(centered)
-                    self.axs[i].set_ylim(-400, 400)
+                    
+                    # Use dynamic y-limits based on current gain setting
+                    ylim = self.ylim if hasattr(self, 'ylim') else 400
+                    self.axs[i].set_ylim(-ylim, ylim)
+                    
+                    # Use dynamic x-limits based on current buffer size
                     self.axs[i].set_xlim(0, self.buffer_size)
+
+                    # Update title with current settings
+                    current_speed = self.settings_manager.get_wave_speed()
+                    current_gain = self.settings_manager.get_wave_gain()
+                    self.axs[i].set_title(f"{lead} | Speed: {current_speed}mm/s | Gain: {current_gain}mm/mV", 
+                                        fontsize=8, color='#666', pad=10)
+                    
+                    # Add grid lines to show scale
+                    self.axs[i].grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
                     
                     # Remove any existing labels
                     self.axs[i].set_xlabel("")
@@ -1344,6 +1628,10 @@ class ECGTestPage(QWidget):
                     writer.writerow(row)
 
     def go_back(self):
+
+        if hasattr(self, '_overlay_active') and self._overlay_active:
+            self._restore_original_layout()
+
         # Go back to dashboard (assumes dashboard is at index 0)
         self.stacked_widget.setCurrentIndex(0)
 
@@ -1351,7 +1639,7 @@ class ECGTestPage(QWidget):
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Warning)
         msg.setWindowTitle("Connection Required")
-        msg.setText("❤️ Please select a COM port and baud rate.\n\nStay healthy!" + ("\n\n" + extra_msg if extra_msg else ""))
+        msg.setText("❤️ Please configure serial port and baud rate in System Setup.\n\nStay healthy!" + ("\n\n" + extra_msg if extra_msg else ""))
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
 
@@ -1371,5 +1659,566 @@ class ECGTestPage(QWidget):
         self._sequential_win = win
 
     def show_all_leads_overlay(self):
-        from ecg.lead_sequential_view import LeadSequentialView
-        self._all_leads_win = LeadSequentialView.show_all_leads(self.leads, self.data, buffer_size=500)
+        # If overlay is already shown, hide it and restore original layout
+        if hasattr(self, '_overlay_active') and self._overlay_active:
+            self._restore_original_layout()
+            return
+        
+        # Store the original plot area layout
+        self._store_original_layout()
+        
+        # Create the overlay widget
+        self._create_overlay_widget()
+        
+        # Replace the plot area with overlay
+        self._replace_plot_area_with_overlay()
+        
+        # Mark overlay as active
+        self._overlay_active = True
+
+        self._apply_current_overlay_mode()
+
+    def _store_original_layout(self):
+        
+        # Store the current plot area widget
+        self._original_plot_area = self.plot_area
+        
+        # Store the current layout
+        self._original_layout = self.plot_area.layout()
+        
+        # Store the current figures, canvases, axes, and lines
+        self._original_figures = getattr(self, 'figures', [])
+        self._original_canvases = getattr(self, 'canvases', [])
+        self._original_axs = getattr(self, 'axs', [])
+        self._original_lines = getattr(self, 'lines', [])
+
+    def _create_overlay_widget(self):
+        
+        from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFrame
+        
+        # Create overlay container
+        self._overlay_widget = QWidget()
+        self._overlay_widget.setStyleSheet("""
+            QWidget {
+                background: #000;
+                border: 2px solid #ff6600;
+                border-radius: 15px;
+            }
+        """)
+        
+        # Main layout for overlay
+        overlay_layout = QVBoxLayout(self._overlay_widget)
+        overlay_layout.setContentsMargins(20, 20, 20, 20)
+        overlay_layout.setSpacing(15)
+        
+        # Top control panel with close button
+        top_panel = QFrame()
+        top_panel.setStyleSheet("""
+            QFrame {
+                background: rgba(255, 255, 255, 0.1);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 15px;
+                padding: 10px;
+            }
+        """)
+        top_layout = QHBoxLayout(top_panel)
+        top_layout.setContentsMargins(15, 10, 15, 10)
+        top_layout.setSpacing(20)
+        
+        # Close button
+        close_btn = QPushButton("Close Overlay")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 2px solid #ff6600;
+                border-radius: 10px;
+                padding: 10px 20px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 2px solid #ff8c42;
+            }
+        """)
+        close_btn.clicked.connect(self._restore_original_layout)
+        
+        # Mode control buttons with highlighting
+        self.light_mode_btn = QPushButton("Light Mode")
+        self.dark_mode_btn = QPushButton("Dark Mode")
+        self.graph_mode_btn = QPushButton("Graph Mode")
+        
+        # Store current mode for highlighting
+        self._current_overlay_mode = "dark"  # Default mode
+        
+        button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+            }
+        """
+        
+        active_button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 3px solid #ff6600;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+                box-shadow: 0 4px 12px rgba(255,102,0,0.4);
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 3px solid #ff8c42;
+            }
+        """
+        
+        self.light_mode_btn.setStyleSheet(button_style)
+        self.dark_mode_btn.setStyleSheet(button_style)
+        self.graph_mode_btn.setStyleSheet(button_style)
+        
+        # Add widgets to top panel
+        top_layout.addWidget(close_btn)
+        top_layout.addStretch()
+        top_layout.addWidget(self.light_mode_btn)
+        top_layout.addWidget(self.dark_mode_btn)
+        top_layout.addWidget(self.graph_mode_btn)
+        
+        overlay_layout.addWidget(top_panel)
+        
+        # Create the matplotlib figure with all leads
+        self._create_overlay_figure(overlay_layout)
+        
+        # Connect mode buttons
+        self.light_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("light"))
+        self.dark_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("dark"))
+        self.graph_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("graph"))
+        
+        # Apply default dark mode and highlight it
+        self._apply_overlay_mode("dark")
+
+    def _create_overlay_figure(self, overlay_layout):
+        
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        import numpy as np
+        
+        # Create figure with all leads - adjust spacing for better visibility
+        num_leads = len(self.leads)
+        fig = Figure(figsize=(16, num_leads * 2.2), facecolor='none')  # Changed to transparent
+        
+        # Adjust subplot parameters for better spacing
+        fig.subplots_adjust(left=0.05, right=0.95, top=0.98, bottom=0.02, hspace=0.15)
+        
+        self._overlay_axes = []
+        self._overlay_lines = []
+        
+        for idx, lead in enumerate(self.leads):
+            ax = fig.add_subplot(num_leads, 1, idx+1)
+            ax.set_facecolor('none')  # Changed to transparent
+            
+            # Remove all borders and spines
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            
+            # Remove all ticks and labels for cleaner look
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_ylabel(lead, color='#00ff00', fontsize=12, fontweight='bold', labelpad=20)
+            
+            # Create line with initial data
+            line, = ax.plot(np.arange(self.buffer_size), [np.nan]*self.buffer_size, color="#00ff00", lw=1.5)
+            self._overlay_axes.append(ax)
+            self._overlay_lines.append(line)
+        
+        self._overlay_canvas = FigureCanvas(fig)
+        overlay_layout.addWidget(self._overlay_canvas)
+        
+        # Start update timer for overlay
+        self._overlay_timer = QTimer(self)
+        self._overlay_timer.timeout.connect(self._update_overlay_plots)
+        self._overlay_timer.start(100)
+
+    def _update_overlay_plots(self):
+        
+        if not hasattr(self, '_overlay_lines') or not self._overlay_lines:
+            return
+        
+        for idx, lead in enumerate(self.leads):
+            if idx < len(self._overlay_lines):
+                data = self.data.get(lead, [])
+                line = self._overlay_lines[idx]
+                ax = self._overlay_axes[idx]
+                
+                plot_data = np.full(self.buffer_size, np.nan)
+                
+                if data and len(data) > 0:
+                    n = min(len(data), self.buffer_size)
+                    centered = np.array(data[-n:]) - np.mean(data[-n:])
+                    
+                    # Apply current gain setting
+                    gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                    centered = centered * gain_factor
+                    
+                    if n < self.buffer_size:
+                        stretched = np.interp(
+                            np.linspace(0, n-1, self.buffer_size),
+                            np.arange(n),
+                            centered
+                        )
+                        plot_data[:] = stretched
+                    else:
+                        plot_data[-n:] = centered
+                    
+                    # Set dynamic y-limits based on data
+                    ymin = np.min(centered) - 100
+                    ymax = np.max(centered) + 100
+                    if ymin == ymax:
+                        ymin, ymax = -500, 500
+                    
+                    # Ensure y-limits are reasonable
+                    ymin = max(-1000, ymin)
+                    ymax = min(1000, ymax)
+                    
+                    ax.set_ylim(ymin, ymax)
+                else:
+                    ax.set_ylim(-500, 500)
+                
+                # Set x-limits
+                ax.set_xlim(0, self.buffer_size-1)
+                line.set_ydata(plot_data)
+        
+        if hasattr(self, '_overlay_canvas'):
+            self._overlay_canvas.draw_idle()
+
+    def _apply_current_overlay_mode(self):
+
+        if hasattr(self, '_current_overlay_mode'):
+            self._apply_overlay_mode(self._current_overlay_mode)
+
+    def _apply_overlay_mode(self, mode):
+        
+        if not hasattr(self, '_overlay_axes') or not self._overlay_axes:
+            return
+        
+        # Store current mode
+        self._current_overlay_mode = mode
+        
+        self._clear_all_backgrounds()
+        
+        # Update button highlighting
+        button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+            }
+        """
+        
+        active_button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 3px solid #ff6600;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+                box-shadow: 0 4px 12px rgba(255,102,0,0.4);
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 3px solid #ff8c42;
+            }
+        """
+        
+        # Reset all buttons to normal style
+        self.light_mode_btn.setStyleSheet(button_style)
+        self.dark_mode_btn.setStyleSheet(button_style)
+        self.graph_mode_btn.setStyleSheet(button_style)
+        
+        # Highlight the active button
+        if mode == "light":
+            self.light_mode_btn.setStyleSheet(active_button_style)
+            self._overlay_widget.setStyleSheet("""
+                QWidget {
+                    background: rgba(255, 255, 255, 0.95);
+                    border: 2px solid #ff6600;
+                    border-radius: 15px;
+                }
+            """)
+            
+            for ax in self._overlay_axes:
+                ax.set_facecolor('#ffffff')
+                ax.tick_params(axis='x', colors='#333333', labelsize=10)
+                ax.tick_params(axis='y', colors='#333333', labelsize=10)
+                ax.set_ylabel(ax.get_ylabel(), color='#333333', fontsize=14, fontweight='bold', labelpad=15)
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('#333333')
+                    spine.set_linewidth(1.0)
+                ax.figure.canvas.draw()
+            
+            for line in self._overlay_lines:
+                line.set_color('#0066cc')
+                line.set_linewidth(2.0)
+        
+        elif mode == "dark":
+            self.dark_mode_btn.setStyleSheet(active_button_style)
+            self._overlay_widget.setStyleSheet("""
+                QWidget {
+                    background: rgba(0, 0, 0, 0.95);
+                    border: 2px solid #ff6600;
+                    border-radius: 15px;
+                }
+            """)
+            
+            for ax in self._overlay_axes:
+                ax.set_facecolor('#000')
+                ax.tick_params(axis='x', colors='#00ff00', labelsize=10)
+                ax.tick_params(axis='y', colors='#00ff00', labelsize=10)
+                ax.set_ylabel(ax.get_ylabel(), color='#00ff00', fontsize=14, fontweight='bold', labelpad=15)
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
+            
+            for line in self._overlay_lines:
+                line.set_color('#00ff00')
+                line.set_linewidth(2.0)
+        
+        elif mode == "graph":
+            self.graph_mode_btn.setStyleSheet(active_button_style)
+            self._apply_graph_mode()
+        
+        if hasattr(self, '_overlay_canvas'):
+            self._overlay_canvas.draw()
+
+    def _clear_all_backgrounds(self):
+        
+        try:
+            # Clear figure-level background
+            if hasattr(self, '_overlay_canvas') and self._overlay_canvas.figure:
+                fig = self._overlay_canvas.figure
+                if hasattr(fig, '_figure_background'):
+                    try:
+                        fig._figure_background.remove()
+                        delattr(fig, '_figure_background')
+                    except:
+                        pass
+                
+                # Reset figure background to transparent
+                fig.patch.set_facecolor('none')
+            
+            # Clear axis-level backgrounds
+            if hasattr(self, '_overlay_axes'):
+                for ax in self._overlay_axes:
+                    if hasattr(ax, '_background_image'):
+                        try:
+                            ax._background_image.remove()
+                            delattr(ax, '_background_image')
+                        except:
+                            pass
+                    
+                    # Reset axis background to transparent
+                    ax.set_facecolor('none')
+                    ax.patch.set_alpha(0.0)
+                    
+        except Exception as e:
+            print(f"Error clearing backgrounds: {e}")
+
+    def _apply_graph_mode(self):
+        
+        try:
+            import os
+            from PyQt5.QtGui import QPixmap
+            import matplotlib.image as mpimg
+            
+            bg_path = "ecg_bgimg_test.png"
+            if os.path.exists(bg_path):
+                # Load the background image
+                bg_img = QPixmap(bg_path)
+                if not bg_img.isNull():
+                    # Save temporary file for matplotlib
+                    temp_path = "temp_bg.png"
+                    bg_img.save(temp_path)
+                    bg_matplotlib = mpimg.imread(temp_path)
+                    
+                    # Apply background to the entire figure first
+                    if hasattr(self, '_overlay_canvas') and self._overlay_canvas.figure:
+                        fig = self._overlay_canvas.figure
+                        fig.patch.set_facecolor('#ffffff')  # White background for the figure
+                        
+                        # Remove any existing background from figure
+                        if hasattr(fig, '_figure_background'):
+                            try:
+                                fig._figure_background.remove()
+                            except:
+                                pass
+                        
+                        # Apply background image to the entire figure
+                        fig._figure_background = fig.figimage(
+                            bg_matplotlib, 
+                            xo=0, yo=0, 
+                            alpha=0.4,  # Slightly transparent so waves are visible
+                            zorder=0
+                        )
+                    
+                    # Apply background to all axes
+                    for i, ax in enumerate(self._overlay_axes):
+                        # Set transparent background for subplots
+                        ax.set_facecolor('none')
+                        ax.patch.set_alpha(0.0)
+                        
+                        # Remove all borders and spines
+                        for spine in ax.spines.values():
+                            spine.set_visible(False)
+                        
+                        # Remove ticks for cleaner look
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        
+                        # Set label color to dark for better visibility on grid background
+                        ax.set_ylabel(ax.get_ylabel(), color='#333333', fontsize=12, fontweight='bold', labelpad=20)
+                        
+                        # Set proper limits
+                        ax.set_xlim(0, self.buffer_size-1)
+                        ax.set_ylim(-500, 500)
+                    
+                    # Change line colors to dark red for better visibility on grid background
+                    for line in self._overlay_lines:
+                        line.set_color('#cc0000')  # Darker red
+                        line.set_linewidth(2.5)
+                        line.set_alpha(1.0)
+                    
+                    # Clean up temporary file
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    
+                    # Force redraw
+                    if hasattr(self, '_overlay_canvas'):
+                        self._overlay_canvas.draw()
+                        
+                    return
+                        
+                else:
+                    print("Failed to load background image")
+                    return
+            else:
+                print(f"Background image not found at: {bg_path}")
+                return
+                
+        except Exception as e:
+            print(f"Error applying graph mode: {e}")
+            return
+
+    def _replace_plot_area_with_overlay(self):
+        
+        # Get the main horizontal layout
+        main_layout = self.grid_widget.layout()
+        
+        # Find the main_vbox layout item (which contains the plot_area)
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if item.layout() and hasattr(item.layout(), 'indexOf') and item.layout().indexOf(self.plot_area) >= 0:
+                # Found the layout containing plot_area
+                main_vbox_layout = item.layout()
+                
+                # Find and replace the plot_area in main_vbox_layout
+                plot_area_index = main_vbox_layout.indexOf(self.plot_area)
+                if plot_area_index >= 0:
+                    # Remove the plot_area
+                    main_vbox_layout.removeWidget(self.plot_area)
+                    self.plot_area.hide()
+                    
+                    # Add the overlay widget at the same position
+                    main_vbox_layout.insertWidget(plot_area_index, self._overlay_widget)
+                    return
+        
+        # Fallback: if we can't find the exact position, add to the end of main_vbox
+        # Find the main_vbox layout
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if item.layout() and hasattr(item.layout(), 'indexOf') and item.layout().indexOf(self.plot_area) >= 0:
+                main_vbox_layout = item.layout()
+                main_vbox_layout.removeWidget(self.plot_area)
+                self.plot_area.hide()
+                main_vbox_layout.addWidget(self._overlay_widget)
+                break
+
+    def _restore_original_layout(self):
+        
+        if not hasattr(self, '_overlay_active') or not self._overlay_active:
+            return
+        
+        # Stop overlay timer
+        if hasattr(self, '_overlay_timer'):
+            self._overlay_timer.stop()
+            self._overlay_timer.deleteLater()
+        
+        # Find and remove overlay widget from main_vbox layout
+        main_layout = self.grid_widget.layout()
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if item.layout() and hasattr(item.layout(), 'indexOf'):
+                main_vbox_layout = item.layout()
+                
+                # Check if overlay widget is in this layout
+                overlay_index = main_vbox_layout.indexOf(self._overlay_widget)
+                if overlay_index >= 0:
+                    # Remove overlay widget
+                    main_vbox_layout.removeWidget(self._overlay_widget)
+                    
+                    # Restore original plot area at the exact same position
+                    main_vbox_layout.insertWidget(overlay_index, self.plot_area)
+                    self.plot_area.show()
+                    break
+        
+        # Clean up overlay references
+        if hasattr(self, '_overlay_widget'):
+            self._overlay_widget.deleteLater()
+            delattr(self, '_overlay_widget')
+        
+        if hasattr(self, '_overlay_axes'):
+            delattr(self, '_overlay_axes')
+        
+        if hasattr(self, '_overlay_lines'):
+            delattr(self, '_overlay_lines')
+        
+        if hasattr(self, '_overlay_canvas'):
+            delattr(self, '_overlay_canvas')
+        
+        # Mark overlay as inactive
+        self._overlay_active = False
+        
+        # Force redraw of original plots
+        self.redraw_all_plots()

@@ -23,7 +23,7 @@ class SplashScreen(QSplashScreen):
         self.label.setMovie(movie)
         movie.start()
         # App Title
-        self.title_label = QLabel("Pulse Monitor By Divyansh", self)
+        self.title_label = QLabel("Pulse Monitor", self)
         self.title_label.setFont(QFont("Arial", 22, QFont.Bold))
         self.title_label.setStyleSheet("color: #ff6600;")
         self.title_label.setGeometry(0, 320, 520, 60)

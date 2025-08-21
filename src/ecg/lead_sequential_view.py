@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QDialog
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QDialog, QFrame
 from PyQt5.QtCore import Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -39,6 +39,11 @@ class LorenzDialog(QDialog):
 class LeadSequentialView(QWidget):
     def __init__(self, leads, data, buffer_size=500, parent=None):
         super().__init__(parent)
+
+        # Initialize settings manager
+        from utils.settings_manager import SettingsManager
+        self.settings_manager = SettingsManager()
+
         self.setWindowTitle("ECG Lead Viewer - Sequential")
         self.setStyleSheet("background: #000;")
         self.resize(1000, 400)
@@ -137,16 +142,22 @@ class LeadSequentialView(QWidget):
         lead = self.leads[self.current_idx]
         self.lead_label.setText(f"Lead: {lead}")
         data = self.data.get(lead, [])
+
+        # Apply gain setting to the displayed data
+        gain_factor = self.settings_manager.get_wave_gain() / 10.0
+
         # Main plot (scrolling window)
         if data:
             x = np.arange(len(data))
             centered = np.array(data) - np.mean(data)
             self.line.set_data(x, centered)
+
+            ylim = 500 * gain_factor
             self.ax.set_xlim(0, max(len(data)-1, 1))
-            ymin = np.min(centered) - 100
-            ymax = np.max(centered) + 100
+            ymin = np.min(centered) - ylim * 0.2
+            ymax = np.max(centered) + ylim * 0.2
             if ymin == ymax:
-                ymin, ymax = -500, 500
+                ymin, ymax = -ylim, ylim
             self.ax.set_ylim(ymin, ymax)
         else:
             self.line.set_data([], [])
@@ -160,6 +171,7 @@ class LeadSequentialView(QWidget):
             mini_ax = self.mini_axes[i]
             if d:
                 d = np.array(d) - np.mean(d)
+                d = d * gain_factor 
                 if len(d) > n_points:
                     idxs = np.linspace(0, len(d)-1, n_points).astype(int)
                     d_lorez = d[idxs]
@@ -169,10 +181,11 @@ class LeadSequentialView(QWidget):
                     x_lorez = np.arange(len(d))
                 mini_line.set_data(x_lorez, d_lorez)
                 mini_ax.set_xlim(0, max(len(d)-1, 1))
-                ymin = np.min(d_lorez) - 100
-                ymax = np.max(d_lorez) + 100
+                ylim = 500 * gain_factor
+                ymin = np.min(d_lorez) - ylim * 0.2
+                ymax = np.max(d_lorez) + ylim * 0.2
                 if ymin == ymax:
-                    ymin, ymax = -500, 500
+                    ymin, ymax = -ylim, ylim
                 mini_ax.set_ylim(ymin, ymax)
             else:
                 mini_line.set_data([], [])
@@ -188,73 +201,3 @@ class LeadSequentialView(QWidget):
     def next_lead(self):
         self.current_idx = (self.current_idx + 1) % len(self.leads)
         self.update_plot()
-
-    @staticmethod
-    def show_all_leads(leads, data, buffer_size=500, parent=None):
-        from PyQt5.QtCore import QTimer
-        win = QWidget(parent)
-        win.setWindowTitle("All ECG Leads - Overlay")
-        win.setStyleSheet("background: #000;")
-        win.resize(1200, 800)
-        layout = QVBoxLayout(win)
-        num_leads = len(leads)
-        fig = Figure(figsize=(12, num_leads * 1.5), facecolor='#000')
-        axes = []
-        lines = []
-        for idx, lead in enumerate(leads):
-            ax = fig.add_subplot(num_leads, 1, idx+1)
-            ax.set_facecolor('#000')
-            ax.tick_params(axis='x', colors='#00ff00')
-            ax.tick_params(axis='y', colors='#00ff00')
-            for spine in ax.spines.values():
-                spine.set_visible(False)
-            ax.set_ylabel(lead, color='#00ff00', fontsize=12, labelpad=10)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            # x-data is always 0..buffer_size-1
-            line, = ax.plot(np.arange(buffer_size), [np.nan]*buffer_size, color="#00ff00", lw=1.5)
-            axes.append(ax)
-            lines.append(line)
-        axes[-1].set_xticks([])  # Optionally, show x-axis only on last subplot
-        canvas = FigureCanvas(fig)
-        layout.addWidget(canvas)
-        win.setLayout(layout)
-        
-        def update_overlay():
-            for idx, lead in enumerate(leads):
-                d = data.get(lead, [])
-                line = lines[idx]
-                ax = axes[idx]
-                plot_data = np.full(buffer_size, np.nan)
-                if d:
-                    n = min(len(d), buffer_size)
-                    centered = np.array(d[-n:]) - np.mean(d[-n:])
-                    if n < buffer_size:
-                        # Stretch data to fill the box from right to left
-                        stretched = np.interp(
-                            np.linspace(0, n-1, buffer_size),
-                            np.arange(n),
-                            centered
-                        )
-                        plot_data[:] = stretched
-                    else:
-                        # Right-align the data (latest at the right)
-                        plot_data[-n:] = centered
-                    ymin = np.min(centered) - 100
-                    ymax = np.max(centered) + 100
-                    if ymin == ymax:
-                        ymin, ymax = -500, 500
-                    ax.set_ylim(ymin, ymax)
-                else:
-                    ax.set_ylim(-500, 500)
-                ax.set_xlim(0, buffer_size-1)
-                line.set_ydata(plot_data)
-            canvas.draw_idle()
-        timer = QTimer(win)
-        timer.timeout.connect(update_overlay)
-        timer.start(100)
-        def stop_timer():
-            timer.stop()
-        win.destroyed.connect(stop_timer)
-        win.show()
-        return win

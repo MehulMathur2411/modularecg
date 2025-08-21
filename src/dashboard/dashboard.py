@@ -166,7 +166,7 @@ class Dashboard(QWidget):
         # heart_img_path = os.path.abspath(heart_img_path)
         # print(f"Pratyaksh Heart image path: {heart_img_path}")  # Debugging line to check the path
         # print(f"Pratyaksh Heart image exists: {os.path.exists(heart_img_path)}")  # Check if the file exists
-        self.heart_pixmap = QPixmap("/Users/deckmount/Pratyaksh1/modularecg/assets/her.png")
+        self.heart_pixmap = QPixmap("/Users/ptr/Downloads/Pratyaksh1/modularecg/assets/her.png")
         self.heart_base_size = 220
         heart_img.setFixedSize(self.heart_base_size + 20, self.heart_base_size + 20)
         heart_img.setAlignment(Qt.AlignCenter)

@@ -349,7 +349,9 @@ class ECGMenu(QGroupBox):
     def __init__(self, parent=None, dashboard=None):
         super().__init__("", parent)
         self.dashboard = dashboard
-        self.settings_manager = SettingsManager()
+        self.settings_manager = None
+        self.sliding_panel = None
+        self.settings_changed_callback = None
 
         self.setStyleSheet("QGroupBox { font: bold 14pt Arial; background-color: #fff; border-radius: 10px; }")
         layout = QVBoxLayout(self)
@@ -2115,6 +2117,230 @@ class ECGMenu(QGroupBox):
         lang_inner.addWidget(make_radio("Hindi", "Hindi", lang_var))
         inner_layout.addWidget(lang_frame)
 
+        # --- SERIAL PORT Block ---
+        serial_frame = QGroupBox("SERIAL PORT")
+        serial_frame.setStyleSheet("""
+            QGroupBox {
+                font: bold 16pt Arial;
+                color: #2c3e50;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                    stop:0 #f8f9fa, stop:1 #e9ecef);
+                border: 2px solid #ff6600;
+                border-radius: 12px;
+                padding: 15px 10px 10px 10px;
+                margin: 10px;
+            }
+            QGroupBox:title {
+                subcontrol-origin: margin;
+                left: 15px;
+                top: 8px;
+                padding: 0 10px 0 10px;
+                color: #ff6600;
+                font-weight: bold;
+                background: white;
+            }
+        """)
+        serial_inner = QVBoxLayout(serial_frame)
+        serial_inner.setSpacing(15)
+        
+        # Port selection
+        port_label = QLabel("Port:")
+        port_label.setStyleSheet("font: bold 14pt Arial; color: #2c3e50;")
+        port_combo = QComboBox()
+        port_combo.setStyleSheet("""
+            QComboBox {
+                font: bold 14pt Arial;
+                color: #2c3e50;
+                background: white;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                min-height: 35px;
+                min-width: 150px;
+            }
+            QComboBox:hover {
+                border: 2px solid #ffb347;
+            }
+            QComboBox:focus {
+                border: 2px solid #ff6600;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #2c3e50;
+                margin-right: 10px;
+            }
+            QComboBox::down-arrow:hover {
+                border-top-color: #ff6600;
+            }
+            QComboBox QAbstractItemView {
+                background: white;
+                border: 2px solid #ff6600;
+                border-radius: 8px;
+                selection-background-color: #ffe0cc;
+                selection-color: #ff6600;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px;
+                min-height: 20px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #fff5f0;
+            }
+        """)
+        
+        # Populate ports
+        port_combo.addItem("Select Port")
+        try:
+            import serial.tools.list_ports
+            ports = serial.tools.list_ports.comports()
+            for port in ports:
+                port_combo.addItem(port.device)
+        except:
+            pass
+        
+        # Set current value from settings - fix the parent reference
+        current_port = "Select Port"
+        try:
+            # Try to get settings from the parent widget's settings manager
+            if hasattr(self.parent(), 'settings_manager'):
+                current_port = self.parent().settings_manager.get_serial_port()
+            elif hasattr(self.parent(), 'parent') and hasattr(self.parent().parent(), 'settings_manager'):
+                current_port = self.parent().parent().settings_manager.get_serial_port()
+        except:
+            current_port = "Select Port"
+        
+        port_combo.setCurrentText(current_port)
+        
+        # Baud rate selection
+        baud_label = QLabel("Baud Rate:")
+        baud_label.setStyleSheet("font: bold 14pt Arial; color: #2c3e50;")
+        baud_combo = QComboBox()
+        baud_combo.setStyleSheet("""
+            QComboBox {
+                font: bold 14pt Arial;
+                color: #2c3e50;
+                background: white;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                min-height: 35px;
+                min-width: 150px;
+            }
+            QComboBox:hover {
+                border: 2px solid #ffb347;
+            }
+            QComboBox:focus {
+                border: 2px solid #ff6600;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #2c3e50;
+                margin-right: 10px;
+            }
+            QComboBox::down-arrow:hover {
+                border-top-color: #ff6600;
+            }
+            QComboBox QAbstractItemView {
+                background: white;
+                border: 2px solid #ff6600;
+                border-radius: 8px;
+                selection-background-color: #ffe0cc;
+                selection-color: #ff6600;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px;
+                min-height: 20px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #fff5f0;
+            }
+        """)
+        
+        # Add baud rate options and make sure they're visible
+        baud_rates = ["9600", "19200", "38400", "57600", "115200"]
+        baud_combo.addItems(baud_rates)
+        
+        # Set current value from settings - fix the parent reference
+        current_baud = "115200"
+        try:
+            # Try to get settings from the parent widget's settings manager
+            if hasattr(self.parent(), 'settings_manager'):
+                current_baud = self.parent().settings_manager.get_baud_rate()
+            elif hasattr(self.parent(), 'parent') and hasattr(self.parent().parent(), 'settings_manager'):
+                current_baud = self.parent().parent().settings_manager.get_serial_port()
+        except:
+            current_baud = "115200"
+        
+        baud_combo.setCurrentText(current_baud)
+        
+        # Add refresh button for ports
+        refresh_btn = QPushButton("Refresh Ports")
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                font: bold 12pt Arial;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #17a2b8, stop:1 #138496);
+                color: white;
+                border: 2px solid #17a2b8;
+                border-radius: 8px;
+                padding: 8px 16px;
+                min-height: 30px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #138496, stop:1 #17a2b8);
+                border: 2px solid #138496;
+            }
+        """)
+        
+        def refresh_ports():
+            port_combo.clear()
+            port_combo.addItem("Select Port")
+            try:
+                import serial.tools.list_ports
+                ports = serial.tools.list_ports.comports()
+                for port in ports:
+                    port_combo.addItem(port.device)
+            except:
+                pass
+        
+        refresh_btn.clicked.connect(refresh_ports)
+        
+        # Improved layout for port settings with better spacing
+        port_row = QHBoxLayout()
+        port_row.setSpacing(15)
+        port_row.addWidget(port_label)
+        port_row.addWidget(port_combo)
+        port_row.addWidget(refresh_btn)
+        port_row.addStretch()
+        
+        baud_row = QHBoxLayout()
+        baud_row.setSpacing(15)
+        baud_row.addWidget(baud_label)
+        baud_row.addWidget(baud_combo)
+        baud_row.addStretch()
+        
+        # Add some spacing between rows
+        serial_inner.addLayout(port_row)
+        serial_inner.addSpacing(10)
+        serial_inner.addLayout(baud_row)
+        inner_layout.addWidget(serial_frame)
+
         layout.addWidget(inner_frame)
 
         # Enhanced Time Setup Button
@@ -2174,7 +2400,44 @@ class ECGMenu(QGroupBox):
             }
         """)
         def save_settings():
-            QMessageBox.information(self.parent(), "Saved", f"Settings saved successfully!\nBEAT VOL: {beat_vol_var['value']}\nLANGUAGE: {lang_var['value']}")
+            # Save serial port settings to settings manager
+            try:
+                if hasattr(self, 'settings_manager') and self.settings_manager:
+                    self.settings_manager.set_setting("serial_port", port_combo.currentText())
+                    self.settings_manager.set_setting("baud_rate", baud_combo.currentText())
+                    print(f"Settings saved directly: Port={port_combo.currentText()}, Baud={baud_combo.currentText()}")
+                elif hasattr(self.parent(), 'settings_manager'):
+                    self.parent().settings_manager.set_setting("serial_port", port_combo.currentText())
+                    self.parent().settings_manager.set_setting("baud_rate", baud_combo.currentText())
+                    print(f"Settings saved via parent: Port={port_combo.currentText()}, Baud={baud_combo.currentText()}")
+                elif hasattr(self.parent(), 'parent') and hasattr(self.parent().parent(), 'settings_manager'):
+                    self.parent().parent().settings_manager.set_setting("serial_port", port_combo.currentText())
+                    self.parent().parent().settings_manager.set_setting("baud_rate", baud_combo.currentText())
+                    print(f"Settings saved via grandparent: Port={port_combo.currentText()}, Baud={baud_combo.currentText()}")
+                else:
+                    print("ERROR: Could not find settings manager!")
+                    QMessageBox.warning(self.parent(), "Error", "Could not save settings. Please try again.")
+                    return
+                
+                print(f"Settings saved successfully: Port={port_combo.currentText()}, Baud={baud_combo.currentText()}")
+                
+                # Verify the settings were saved by reading them back
+                if hasattr(self, 'settings_manager') and self.settings_manager:
+                    saved_port = self.settings_manager.get_serial_port()
+                    saved_baud = self.settings_manager.get_baud_rate()
+                    print(f"Verification - Saved Port: {saved_port}, Saved Baud: {saved_baud}")
+                
+            except Exception as e:
+                print(f"Error saving settings: {e}")
+                QMessageBox.warning(self.parent(), "Error", f"Failed to save settings: {str(e)}")
+                return
+            
+            QMessageBox.information(self.parent(), "Saved", 
+                f"Settings saved successfully!\n"
+                f"BEAT VOL: {beat_vol_var['value']}\n"
+                f"LANGUAGE: {lang_var['value']}\n"
+                f"SERIAL PORT: {port_combo.currentText()}\n"
+                f"BAUD RATE: {baud_combo.currentText()}")
         ok_btn.clicked.connect(save_settings)
 
         cancel_btn = QPushButton("Cancel")
@@ -2182,9 +2445,9 @@ class ECGMenu(QGroupBox):
         cancel_btn.setStyleSheet("""
             QPushButton {
                 font: bold 14pt Arial;
+                color: white;
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #f44336, stop:1 #d32f2f);
-                color: white;
                 border: 2px solid #f44336;
                 border-radius: 12px;
                 padding: 12px;
@@ -2201,22 +2464,29 @@ class ECGMenu(QGroupBox):
                 border: 2px solid #c62828;
             }
         """)
-        cancel_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
+        cancel_btn.clicked.connect(lambda: self.hide_sliding_panel())
 
         btn_row.addWidget(ok_btn)
         btn_row.addWidget(cancel_btn)
         layout.addLayout(btn_row)
-        
+
         return widget
 
     def show_time_setup_inside(self, container):
-        """Show time setup inside the system setup container"""
-        # Clear existing content except title
+       
         for i in reversed(range(container.layout().count())):
-            if i == 0: continue  # preserve title/header
+            if i == 0: continue  
             item = container.layout().itemAt(i)
             if item.widget(): 
                 item.widget().deleteLater()
+            elif item.layout():  
+                
+                while item.count():
+                    child = item.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+                
+                container.layout().removeItem(item)
 
         fields = [("Year", "2025"), ("Month", "06"), ("Day", "17"),
                 ("Hour", "12"), ("Minute", "00"), ("Second", "00")]
@@ -2287,9 +2557,36 @@ class ECGMenu(QGroupBox):
 
         container.layout().addWidget(time_frame)
 
-        # Enhanced buttons
+        # Enhanced buttons with back button
         btn_frame = QHBoxLayout()
         btn_frame.setSpacing(20)
+        
+        # Back button to return to system setup
+        back_btn = QPushButton("Back")
+        back_btn.setFixedSize(180, 50)
+        back_btn.setStyleSheet("""
+            QPushButton {
+                font: bold 14pt Arial;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #6c757d, stop:1 #495057);
+                color: white;
+                border: 2px solid #6c757d;
+                border-radius: 12px;
+                padding: 12px;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #495057, stop:1 #6c757d);
+                border: 2px solid #495057;
+                box-shadow: 0 4px 15px rgba(108,117,125,0.3);
+            }
+            QPushButton:pressed {
+                background: #343a40;
+                border: 2px solid #343a40;
+            }
+        """)
+        back_btn.clicked.connect(lambda: self.create_system_setup_content())
         
         ok_btn = QPushButton("OK")
         ok_btn.setFixedSize(180, 50)
@@ -2341,8 +2638,9 @@ class ECGMenu(QGroupBox):
                 border: 2px solid #c62828;
             }
         """)
-        cancel_btn.clicked.connect(lambda: self.create_system_setup_content())  # Recreate system setup
+        cancel_btn.clicked.connect(lambda: self.show_system_setup())
         
+        btn_frame.addWidget(back_btn)
         btn_frame.addWidget(ok_btn)
         btn_frame.addWidget(cancel_btn)
 

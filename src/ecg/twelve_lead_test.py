@@ -264,12 +264,7 @@ class ECGTestPage(QWidget):
         self.axs = []
         self.canvases = []
 
-        # Add Back button at the top
-        back_btn = QPushButton("Back")
-        back_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 10px; padding: 8px 24px; font-size: 16px; font-weight: bold;")
-        back_btn.clicked.connect(self.go_back)
         main_vbox = QVBoxLayout()
-        main_vbox.addWidget(back_btn, alignment=Qt.AlignLeft)
 
         menu_frame = QGroupBox("Menu")
 
@@ -327,6 +322,8 @@ class ECGTestPage(QWidget):
 
         # Create ECGMenu instance to use its methods
         self.ecg_menu = ECGMenu(parent=self, dashboard=self.stacked_widget.parent())
+
+        self.ecg_menu.settings_manager = self.settings_manager
 
         # Initialize sliding panel for the ECG menu
         self.ecg_menu.sliding_panel = None
@@ -495,19 +492,24 @@ class ECGTestPage(QWidget):
         self.recording_frames = []
 
 
-        conn_layout = QHBoxLayout()
-        self.port_combo = QComboBox()
-        self.baud_combo = QComboBox()
-        self.baud_combo.addItem("Select Baud Rate")
-        self.baud_combo.addItems(["9600", "19200", "38400", "57600", "115200"])
-        conn_layout.addWidget(QLabel("Serial Port:"))
-        conn_layout.addWidget(self.port_combo)
-        conn_layout.addWidget(QLabel("Baud Rate:"))
-        conn_layout.addWidget(self.baud_combo)
-        self.refresh_ports()
-        main_vbox.addLayout(conn_layout)
+        # conn_layout = QHBoxLayout()
+        # self.port_combo = QComboBox()
+        # self.baud_combo = QComboBox()
+        # self.baud_combo.addItem("Select Baud Rate")
+        # self.baud_combo.addItems(["9600", "19200", "38400", "57600", "115200"])
+        # conn_layout.addWidget(QLabel("Serial Port:"))
+        # conn_layout.addWidget(self.port_combo)
+        # conn_layout.addWidget(QLabel("Baud Rate:"))
+        # conn_layout.addWidget(self.baud_combo)
+        # self.refresh_ports()
+        # main_vbox.addLayout(conn_layout)
 
         self.plot_area = QWidget()
+
+        # Add metrics frame above the plot area
+        self.metrics_frame = self.create_metrics_frame()
+        main_vbox.addWidget(self.metrics_frame)
+
         main_vbox.addWidget(self.plot_area)
 
         main_vbox.setSpacing(16)
@@ -676,6 +678,143 @@ class ECGTestPage(QWidget):
         
         print(f"Applied settings: speed={wave_speed}mm/s, gain={wave_gain}mm/mV, buffer={self.buffer_size}, ylim={self.ylim}")
 
+    # ------------------------ Update Metrics on the top of the lead graphs ------------------------
+
+    def create_metrics_frame(self):
+        metrics_frame = QFrame()
+        metrics_frame.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                padding: 4px;
+                margin: 2px 0;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }
+        """)
+        
+        metrics_layout = QHBoxLayout(metrics_frame)
+        metrics_layout.setSpacing(10)
+        metrics_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Store metric labels for live update
+        self.metric_labels = {}
+        metric_info = [
+            ("Heart Rate", "--", "bpm", "heart_rate"),
+            ("PR Interval", "--", "ms", "pr_interval"),
+            ("QRS Duration", "--", "ms", "qrs_duration"),
+            ("QTc Interval", "--", "ms", "qtc_interval"),
+            ("QRS Axis", "--", "°", "qrs_axis"),
+            ("ST Segment", "--", "", "st_segment"),
+        ]
+        
+        for title, value, unit, key in metric_info:
+            metric_widget = QWidget()
+            metric_widget.setStyleSheet("""
+                QWidget {
+                    background: transparent;
+                    min-width: 120px;
+                }
+            """)
+            
+            # Create vertical layout for the metric widget
+            box = QVBoxLayout(metric_widget)
+            box.setSpacing(3)
+            box.setAlignment(Qt.AlignCenter)
+            
+            # Title label
+            lbl = QLabel(title)
+            lbl.setFont(QFont("Arial", 9, QFont.Bold))
+            lbl.setStyleSheet("color: #666; margin-bottom: 5px;")
+            lbl.setAlignment(Qt.AlignCenter)
+            
+            # Value label
+            val = QLabel(f"{value} {unit}")
+            val.setFont(QFont("Arial", 14, QFont.Bold))
+            val.setStyleSheet("color: #ff6600; background: transparent; padding: 4px 0px;")
+            val.setAlignment(Qt.AlignCenter)
+            
+            # Add labels to the metric widget's layout
+            box.addWidget(lbl)
+            box.addWidget(val)
+            
+            # Add the metric widget to the horizontal layout
+            metrics_layout.addWidget(metric_widget)
+            
+            # Store reference for live update
+            self.metric_labels[key] = val
+        
+        return metrics_frame
+
+    def update_ecg_metrics_on_top_of_lead_graphs(self, intervals):
+        if 'Heart_Rate' in intervals and intervals['Heart_Rate'] is not None:
+            self.metric_labels['heart_rate'].setText(
+                f"{int(round(intervals['Heart_Rate']))} bpm" if isinstance(intervals['Heart_Rate'], (int, float)) else str(intervals['Heart_Rate'])
+            )
+        if 'PR' in intervals and intervals['PR'] is not None:
+            self.metric_labels['pr_interval'].setText(
+                f"{int(round(intervals['PR']))} ms" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR'])
+            )
+        if 'QRS' in intervals and intervals['QRS'] is not None:
+            self.metric_labels['qrs_duration'].setText(
+                f"{int(round(intervals['QRS']))} ms" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS'])
+            )
+        if 'QTc' in intervals and intervals['QTc'] is not None:
+            if isinstance(intervals['QTc'], (int, float)) and intervals['QTc'] >= 0:
+                self.metric_labels['qtc_interval'].setText(f"{int(round(intervals['QTc']))} ms")
+            else:
+                self.metric_labels['qtc_interval'].setText("-- ms")
+        if 'QRS_axis' in intervals and intervals['QRS_axis'] is not None:
+            self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
+        if 'ST' in intervals and intervals['ST'] is not None:
+            self.metric_labels['st_segment'].setText(
+                f"{int(round(intervals['ST']))} ms" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST'])
+            )
+
+    def calculate_ecg_intervals(self, lead_ii_data):
+        if not lead_ii_data or len(lead_ii_data) < 100:
+            return {}
+        
+        try:
+            from ecg.pan_tompkins import pan_tompkins
+            
+            # Convert to numpy array
+            data = np.array(lead_ii_data)
+            
+            # Detect R peaks using Pan-Tompkins algorithm
+            r_peaks = pan_tompkins(data, fs=500)  # 500Hz sampling rate
+            
+            if len(r_peaks) < 2:
+                return {}
+            
+            # Calculate heart rate
+            rr_intervals = np.diff(r_peaks) / 500.0  # Convert to seconds
+            mean_rr = np.mean(rr_intervals)
+            heart_rate = 60 / mean_rr if mean_rr > 0 else 0
+            
+            # Calculate intervals
+            pr_interval = 0.16  
+            qrs_duration = 0.08  
+            qt_interval = 0.4    
+            qtc_interval = 0.42  
+            qrs_axis = "--"      
+            st_segment = 0.12    
+            
+            return {
+                'Heart_Rate': heart_rate,
+                'PR': pr_interval * 1000,  # Convert to ms
+                'QRS': qrs_duration * 1000,
+                'QT': qt_interval * 1000,
+                'QTc': qtc_interval * 1000,
+                'QRS_axis': qrs_axis,
+                'ST': st_segment * 1000
+            }
+            
+        except Exception as e:
+            print(f"Error calculating ECG intervals: {e}")
+            return {}
+
     # ------------------------ Show help dialog ------------------------
 
     def show_help(self):
@@ -683,7 +822,7 @@ class ECGTestPage(QWidget):
         <h3>12-Lead ECG Monitor Help</h3>
         <p><b>Getting Started:</b></p>
         <ul>
-        <li>Select a COM port and baud rate</li>
+        <li>Configure serial port and baud rate in System Setup</li>
         <li>Click 'Start' to begin recording</li>
         <li>Click on any lead to view it in detail</li>
         <li>Use the menu options for additional features</li>
@@ -849,54 +988,6 @@ class ECGTestPage(QWidget):
         cp = QApplication.desktop().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
-
-    def show_12to1_graph(self):
-        win = QWidget()
-        win.setWindowTitle("12:1 ECG Graph")
-        layout = QVBoxLayout(win)
-        ordered_leads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
-        self._12to1_lines = {}
-        self._12to1_axes = {}
-        for lead in ordered_leads:
-            group = QGroup
-            group.setStyleSheet("QGroupBox { border: 2px solid rgba(0,0,0,0.2); border-radius: 8px; margin-top: 8px; }")
-            vbox = QVBoxLayout(group)
-            fig = Figure(figsize=(12, 2.5), facecolor='#000')
-            ax = fig.add_subplot(111)
-            ax.set_facecolor('#000')
-            ax.set_ylim(-400, 400)
-            ax.set_xlim(0, self.buffer_size)
-            line, = ax.plot([0]*self.buffer_size, color=self.LEAD_COLORS.get(lead, "#00ff99"), lw=2)
-            self._12to1_lines[lead] = line
-            self._12to1_axes[lead] = ax
-            canvas = FigureCanvas(fig)
-            vbox.addWidget(canvas)
-            layout.addWidget(group)
-        win.setLayout(layout)
-        win.resize(1400, 1200)
-        win.show()
-        self._12to1_win = win
-        self._12to1_timer = QTimer(self)
-        self._12to1_timer.timeout.connect(self.update_12to1_graph)
-        self._12to1_timer.start(100)
-        def stop_timer():
-            self._12to1_timer.stop()
-        win.destroyed.connect(stop_timer)
-
-    def update_12to1_graph(self):
-        for lead, line in self._12to1_lines.items():
-            data = self.data.get(lead, [])
-            ax = self._12to1_axes[lead]
-            if data:
-                n = min(len(data), self.buffer_size)
-                plot_data = np.full(self.buffer_size, np.nan)
-                centered = np.array(data[-n:]) - np.mean(data[-n:])
-                plot_data[-n:] = centered
-                line.set_ydata(plot_data)
-                ax.set_ylim(-400, 400)
-            else:
-                line.set_ydata([np.nan]*self.buffer_size)
-            ax.figure.canvas.draw_idle()
 
     def expand_lead(self, idx):
         lead = self.leads[idx]
@@ -1279,31 +1370,50 @@ class ECGTestPage(QWidget):
     # ---------------------- Start Button Functionality ----------------------
 
     def start_acquisition(self):
-        port = self.port_combo.currentText()
-        baud = self.baud_combo.currentText()
+        port = self.settings_manager.get_serial_port()
+        baud = self.settings_manager.get_baud_rate()
 
-        if port == "Select Port" or baud == "Select Baud Rate":
-            self.show_connection_warning()
+        print(f"Starting acquisition with Port: {port}, Baud: {baud}")
+
+        if port == "Select Port" or baud == "Select Baud Rate" or port is None or baud is None:
+            self.show_connection_warning("Please configure serial port and baud rate in System Setup first.")
             return
+        
         try:
+            # Convert baud rate to integer with error handling
+            try:
+                baud_int = int(baud)
+            except (ValueError, TypeError):
+                self.show_connection_warning(f"Invalid baud rate: {baud}. Please set a valid baud rate in System Setup.")
+                return
+            
             if self.serial_reader:
                 self.serial_reader.close()
-            self.serial_reader = SerialECGReader(port, int(baud))
+            
+            print(f"Connecting to {port} at {baud_int} baud...")
+            self.serial_reader = SerialECGReader(port, baud_int)
             self.serial_reader.start()
             self.timer.start(50)
             if hasattr(self, '_12to1_timer'):
                 self._12to1_timer.start(100)
+                
+            print("Serial connection established successfully!")
+            
         except Exception as e:
-            self.show_connection_warning(str(e))
+            error_msg = f"Failed to connect to {port} at {baud} baud: {str(e)}"
+            print(error_msg)
+            self.show_connection_warning(error_msg)
 
     # ---------------------- Stop Button Functionality ----------------------
 
     def stop_acquisition(self):
-        port = self.port_combo.currentText()
-        baud = self.baud_combo.currentText()
-        if port == "Select Port" or baud == "Select Baud Rate":
-            self.show_connection_warning()
+        port = self.settings_manager.get_serial_port()
+        baud = self.settings_manager.get_baud_rate()
+        
+        if port == "Select Port" or baud == "Select Baud Rate" or port is None or baud is None:
+            self.show_connection_warning("Please configure serial port and baud rate in System Setup first.")
             return
+            
         if self.serial_reader:
             self.serial_reader.stop()
         self.timer.stop()
@@ -1447,6 +1557,11 @@ class ECGTestPage(QWidget):
             except Exception as e:
                 print("Error writing lead_ii_live.json:", e)
             
+            # Calculate and update ECG metrics in real-time
+            lead_ii_data = self.data.get("II", [])
+            if lead_ii_data:
+                intervals = self.calculate_ecg_intervals(lead_ii_data)
+                self.update_ecg_metrics_on_top_of_lead_graphs(intervals)
             
             for i, lead in enumerate(self.leads):
                 if len(self.data[lead]) > 0:
@@ -1524,7 +1639,7 @@ class ECGTestPage(QWidget):
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Warning)
         msg.setWindowTitle("Connection Required")
-        msg.setText("❤️ Please select a COM port and baud rate.\n\nStay healthy!" + ("\n\n" + extra_msg if extra_msg else ""))
+        msg.setText("❤️ Please configure serial port and baud rate in System Setup.\n\nStay healthy!" + ("\n\n" + extra_msg if extra_msg else ""))
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
 

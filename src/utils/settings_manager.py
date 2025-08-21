@@ -10,7 +10,9 @@ class SettingsManager:
             "lead_sequence": "Standard",
             "sampling_mode": "Simultaneous",
             "demo_function": "Off",
-            "storage": "SD"
+            "storage": "SD",
+            "serial_port": "Select Port",
+            "baud_rate": "115200"
         }
         self.settings = self.load_settings()
     
@@ -18,7 +20,11 @@ class SettingsManager:
         if os.path.exists(self.settings_file):
             try:
                 with open(self.settings_file, 'r') as f:
-                    return json.load(f)
+                    loaded_settings = json.load(f)
+                    
+                    merged_settings = self.default_settings.copy()
+                    merged_settings.update(loaded_settings)
+                    return merged_settings
             except:
                 return self.default_settings.copy()
         return self.default_settings.copy()
@@ -40,3 +46,9 @@ class SettingsManager:
     
     def get_wave_gain(self):
         return float(self.get_setting("wave_gain"))
+
+    def get_serial_port(self):
+        return self.get_setting("serial_port")
+    
+    def get_baud_rate(self):
+        return self.get_setting("baud_rate")

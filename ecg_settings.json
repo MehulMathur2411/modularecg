@@ -1,0 +1,10 @@
+{
+  "wave_speed": "25",
+  "wave_gain": "10",
+  "lead_sequence": "Cabrera",
+  "sampling_mode": "Sequence",
+  "demo_function": "Off",
+  "storage": "U",
+  "serial_port": "/dev/cu.usbserial-3140",
+  "baud_rate": "115200"
+}

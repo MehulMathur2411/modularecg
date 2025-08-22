@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QStackedLayout, QGridLayout, QSizePolicy, QMessageBox, QFormLayout, QLineEdit, QFrame, QApplication
 )
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QDateTime
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from ecg.recording import ECGMenu
@@ -264,6 +264,11 @@ class ECGTestPage(QWidget):
         self.axs = []
         self.canvases = []
 
+        # Initialize time tracking for elapsed time
+        self.start_time = None
+        self.elapsed_timer = QTimer()
+        self.elapsed_timer.timeout.connect(self.update_elapsed_time)
+
         main_vbox = QVBoxLayout()
 
         menu_frame = QGroupBox("Menu")
@@ -434,6 +439,40 @@ class ECGTestPage(QWidget):
         """)
 
         recording_layout = QVBoxLayout(recording_frame)
+
+        # Capture Screen button
+        self.capture_screen_btn = QPushButton("Capture Screen")
+        self.capture_screen_btn.setFixedHeight(77)
+        self.capture_screen_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                color: #1a1a1a;
+                border: 3px solid #e9ecef;
+                border-radius: 15px;
+                padding: 20px 30px;
+                font-size: 18px;
+                font-weight: bold;
+                text-align: center;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #fff5f0, stop:1 #ffe0cc);
+                border: 4px solid #2453ff;
+                color: #2453ff;
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(36,83,255,0.5);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #e0e8ff, stop:1 #ccd9ff);
+                border: 4px solid #2453ff;
+                color: #2453ff;
+            }
+        """)
+        self.capture_screen_btn.clicked.connect(self.capture_screen)
+        recording_layout.addWidget(self.capture_screen_btn)
         
         # Toggle-style recording button
         self.recording_toggle = QPushButton("Record Screen")
@@ -525,7 +564,8 @@ class ECGTestPage(QWidget):
         self.back_btn = QPushButton("Back")
         self.ecg_plot_btn = QPushButton("Open ECG Live Plot")
         self.sequential_btn = QPushButton("Show All Leads Sequentially")
-        self.all_leads_btn = QPushButton("Show All Leads Overlay")
+        self.twelve_leads_btn = QPushButton("12:1")
+        self.six_leads_btn = QPushButton("6:2")
 
         green_color = """
             QPushButton {
@@ -564,7 +604,8 @@ class ECGTestPage(QWidget):
         self.back_btn.setStyleSheet(green_color)
         self.ecg_plot_btn.setStyleSheet(green_color)
         self.sequential_btn.setStyleSheet(green_color)
-        self.all_leads_btn.setStyleSheet(green_color)
+        self.twelve_leads_btn.setStyleSheet(green_color)
+        self.six_leads_btn.setStyleSheet(green_color)
 
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
@@ -573,7 +614,8 @@ class ECGTestPage(QWidget):
         btn_layout.addWidget(self.back_btn)
         btn_layout.addWidget(self.ecg_plot_btn)
         btn_layout.addWidget(self.sequential_btn)
-        btn_layout.addWidget(self.all_leads_btn)
+        btn_layout.addWidget(self.twelve_leads_btn)
+        btn_layout.addWidget(self.six_leads_btn)
         main_vbox.addLayout(btn_layout)
 
         self.start_btn.clicked.connect(self.start_acquisition)
@@ -606,7 +648,8 @@ class ECGTestPage(QWidget):
         self.export_csv_btn.clicked.connect(self.export_csv)
         self.back_btn.clicked.connect(self.go_back)
         self.sequential_btn.clicked.connect(self.show_sequential_view)
-        self.all_leads_btn.clicked.connect(self.show_all_leads_overlay)
+        self.twelve_leads_btn.clicked.connect(self.twelve_leads_overlay)
+        self.six_leads_btn.clicked.connect(self.six_leads_overlay)
         # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
 
         main_hbox = QHBoxLayout(self.grid_widget)
@@ -678,15 +721,15 @@ class ECGTestPage(QWidget):
         
         print(f"Applied settings: speed={wave_speed}mm/s, gain={wave_gain}mm/mV, buffer={self.buffer_size}, ylim={self.ylim}")
 
-    # ------------------------ Update Metrics on the top of the lead graphs ------------------------
+    # ------------------------ Update Dashboard Metrics on the top of the lead graphs ------------------------
 
     def create_metrics_frame(self):
         metrics_frame = QFrame()
+        metrics_frame.setObjectName("metrics_frame")
         metrics_frame.setStyleSheet("""
             QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
-                    stop:0 #ffffff, stop:1 #f8f9fa);
-                border: 2px solid #e0e0e0;
+                background: #000000;
+                border: 2px solid #333333;
                 border-radius: 6px;
                 padding: 4px;
                 margin: 2px 0;
@@ -700,21 +743,23 @@ class ECGTestPage(QWidget):
         
         # Store metric labels for live update
         self.metric_labels = {}
+        
+        # Updated metric info to match the image design
         metric_info = [
-            ("Heart Rate", "--", "bpm", "heart_rate"),
-            ("PR Interval", "--", "ms", "pr_interval"),
-            ("QRS Duration", "--", "ms", "qrs_duration"),
-            ("QTc Interval", "--", "ms", "qtc_interval"),
-            ("QRS Axis", "--", "°", "qrs_axis"),
-            ("ST Segment", "--", "", "st_segment"),
+            ("PR Intervals (ms)", "--", "pr_interval", "#ff0000"),
+            ("QRS Complex (ms)", "--", "qrs_duration", "#ffff00"),
+            ("QRS Axis", "--", "qrs_axis", "#ffff00"),
+            ("ST Interval", "--", "st_segment", "#0000ff"),
+            ("Time Elapsed", "00:00", "time_elapsed", "#ffffff"),
         ]
         
-        for title, value, unit, key in metric_info:
+        for title, value, key, color in metric_info:
             metric_widget = QWidget()
             metric_widget.setStyleSheet("""
                 QWidget {
                     background: transparent;
                     min-width: 120px;
+                    border-right: none;
                 }
             """)
             
@@ -723,16 +768,16 @@ class ECGTestPage(QWidget):
             box.setSpacing(3)
             box.setAlignment(Qt.AlignCenter)
             
-            # Title label
+            # Title label (green color as shown in image)
             lbl = QLabel(title)
-            lbl.setFont(QFont("Arial", 9, QFont.Bold))
-            lbl.setStyleSheet("color: #666; margin-bottom: 5px;")
+            lbl.setFont(QFont("Arial", 12, QFont.Bold))
+            lbl.setStyleSheet("color: #00ff00; margin-bottom: 5px;")  # Green color
             lbl.setAlignment(Qt.AlignCenter)
             
-            # Value label
-            val = QLabel(f"{value} {unit}")
+            # Value label with specific colors
+            val = QLabel(value)
             val.setFont(QFont("Arial", 14, QFont.Bold))
-            val.setStyleSheet("color: #ff6600; background: transparent; padding: 4px 0px;")
+            val.setStyleSheet(f"color: {color}; background: transparent; padding: 4px 0px;")
             val.setAlignment(Qt.AlignCenter)
             
             # Add labels to the metric widget's layout
@@ -745,32 +790,187 @@ class ECGTestPage(QWidget):
             # Store reference for live update
             self.metric_labels[key] = val
         
+        heart_rate_widget = QWidget()
+        heart_rate_widget.setStyleSheet("""
+            QWidget {
+                background: transparent;
+                min-width: 120px;
+                border-right: none;
+            }
+        """)
+        
+        heart_layout = QHBoxLayout(heart_rate_widget)
+        heart_layout.setSpacing(2)
+        heart_layout.setContentsMargins(0, 0, 0, 0)
+        heart_layout.setAlignment(Qt.AlignCenter)
+        
+        # Heart icon
+        heart_icon = QLabel("❤")
+        heart_icon.setFont(QFont("Arial", 18))
+        heart_icon.setStyleSheet("color: #ff0000; background: transparent; border: none; margin: 0; padding: 0;")
+        heart_icon.setAlignment(Qt.AlignCenter)
+        
+        # Heart rate value
+        heart_rate_val = QLabel("00")
+        heart_rate_val.setFont(QFont("Arial", 14, QFont.Bold))
+        heart_rate_val.setStyleSheet("color: #ff0000; background: transparent; border: none; margin: 0;")
+        heart_rate_val.setAlignment(Qt.AlignCenter)
+        heart_rate_val.setContentsMargins(0, 0, 0, 0)
+        
+        heart_layout.addWidget(heart_icon)
+        heart_layout.addWidget(heart_rate_val)
+        
+        # Insert heart rate widget at the beginning
+        metrics_layout.insertWidget(0, heart_rate_widget)
+        self.metric_labels['heart_rate'] = heart_rate_val
+        
         return metrics_frame
 
     def update_ecg_metrics_on_top_of_lead_graphs(self, intervals):
         if 'Heart_Rate' in intervals and intervals['Heart_Rate'] is not None:
             self.metric_labels['heart_rate'].setText(
-                f"{int(round(intervals['Heart_Rate']))} bpm" if isinstance(intervals['Heart_Rate'], (int, float)) else str(intervals['Heart_Rate'])
+                f"{int(round(intervals['Heart_Rate']))}" if isinstance(intervals['Heart_Rate'], (int, float)) else str(intervals['Heart_Rate'])
             )
+        
         if 'PR' in intervals and intervals['PR'] is not None:
             self.metric_labels['pr_interval'].setText(
-                f"{int(round(intervals['PR']))} ms" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR'])
+                f"{int(round(intervals['PR']))}" if isinstance(intervals['PR'], (int, float)) else str(intervals['PR'])
             )
+        
         if 'QRS' in intervals and intervals['QRS'] is not None:
             self.metric_labels['qrs_duration'].setText(
-                f"{int(round(intervals['QRS']))} ms" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS'])
+                f"{int(round(intervals['QRS']))}" if isinstance(intervals['QRS'], (int, float)) else str(intervals['QRS'])
             )
-        if 'QTc' in intervals and intervals['QTc'] is not None:
-            if isinstance(intervals['QTc'], (int, float)) and intervals['QTc'] >= 0:
-                self.metric_labels['qtc_interval'].setText(f"{int(round(intervals['QTc']))} ms")
-            else:
-                self.metric_labels['qtc_interval'].setText("-- ms")
+        
         if 'QRS_axis' in intervals and intervals['QRS_axis'] is not None:
             self.metric_labels['qrs_axis'].setText(str(intervals['QRS_axis']))
+        
         if 'ST' in intervals and intervals['ST'] is not None:
             self.metric_labels['st_segment'].setText(
-                f"{int(round(intervals['ST']))} ms" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST'])
+                f"{int(round(intervals['ST']))}" if isinstance(intervals['ST'], (int, float)) else str(intervals['ST'])
             )
+        
+        if 'time_elapsed' in self.metric_labels:
+            # Time elapsed will be updated separately by a timer
+            pass
+
+    def update_metrics_frame_theme(self, dark_mode=False, medical_mode=False):
+       
+        if not hasattr(self, 'metrics_frame'):
+            return
+            
+        if dark_mode:
+            # Dark mode styling
+            self.metrics_frame.setStyleSheet("""
+                QFrame#metrics_frame {
+                    background: #000000;
+                    border: 2px solid #333333;
+                    border-radius: 6px;
+                    padding: 4px;
+                    margin: 2px 0;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                }
+            """)
+            
+            # Update text colors for dark mode
+            for key, label in self.metric_labels.items():
+                if key == 'heart_rate':
+                    label.setStyleSheet("color: #ff0000; background: transparent; padding: 0; border: none; margin: 0;")
+                elif key == 'pr_interval':
+                    label.setStyleSheet("color: #ff0000; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'qrs_duration':
+                    label.setStyleSheet("color: #ffff00; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'qrs_axis':
+                    label.setStyleSheet("color: #ffff00; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'st_segment':
+                    label.setStyleSheet("color: #0000ff; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'time_elapsed':
+                    label.setStyleSheet("color: #ffffff; background: transparent; padding: 4px 0px; border: none;")
+            
+            # Update title colors to green for dark mode
+            for child in self.metrics_frame.findChildren(QLabel):
+                if child != self.metric_labels.get('heart_rate') and child != self.metric_labels.get('time_elapsed'):
+                    if not any(child == label for label in self.metric_labels.values()):
+                        child.setStyleSheet("color: #00ff00; margin-bottom: 5px; border: none;")
+                        
+        elif medical_mode:
+            # Medical mode styling (green theme)
+            self.metrics_frame.setStyleSheet("""
+                QFrame#metrics_frame {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                        stop:0 #f0fff0, stop:1 #e0f0e0);
+                    border: 2px solid #4CAF50;
+                    border-radius: 6px;
+                    padding: 4px;
+                    margin: 2px 0;
+                    box-shadow: 0 4px 15px rgba(76,175,80,0.2);
+                }
+            """)
+            
+            # Update text colors for medical mode
+            for key, label in self.metric_labels.items():
+                if key == 'heart_rate':
+                    label.setStyleSheet("color: #d32f2f; background: transparent; padding: 0; border: none; margin: 0;")
+                elif key == 'pr_interval':
+                    label.setStyleSheet("color: #d32f2f; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'qrs_duration':
+                    label.setStyleSheet("color: #f57c00; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'qrs_axis':
+                    label.setStyleSheet("color: #f57c00; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'st_segment':
+                    label.setStyleSheet("color: #1976d2; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'time_elapsed':
+                    label.setStyleSheet("color: #388e3c; background: transparent; padding: 4px 0px; border: none;")
+            
+            # Update title colors to dark green for medical mode
+            for child in self.metrics_frame.findChildren(QLabel):
+                if child != self.metric_labels.get('heart_rate') and child != self.metric_labels.get('time_elapsed'):
+                    if not any(child == label for label in self.metric_labels.values()):
+                        child.setStyleSheet("color: #2e7d32; margin-bottom: 5px; border: none;")
+                        
+        else:
+            # Light mode (default) styling
+            self.metrics_frame.setStyleSheet("""
+                QFrame#metrics_frame {
+                    background: #ffffff;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 6px;
+                    padding: 4px;
+                    margin: 2px 0;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+            """)
+            
+            # Update text colors for light mode
+            for key, label in self.metric_labels.items():
+                if key == 'heart_rate':
+                    label.setStyleSheet("color: #ff0000; background: transparent; padding: 0; border: none; margin: 0;")
+                elif key == 'pr_interval':
+                    label.setStyleSheet("color: #ff0000; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'qrs_duration':
+                    label.setStyleSheet("color: #ff8f00; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'qrs_axis':
+                    label.setStyleSheet("color: #ff8f00; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'st_segment':
+                    label.setStyleSheet("color: #1976d2; background: transparent; padding: 4px 0px; border: none;")
+                elif key == 'time_elapsed':
+                    label.setStyleSheet("color: #424242; background: transparent; padding: 4px 0px; border: none;")
+            
+            # Update title colors to dark gray for light mode
+            for child in self.metrics_frame.findChildren(QLabel):
+                if child != self.metric_labels.get('heart_rate') and child != self.metric_labels.get('time_elapsed'):
+                    if not any(child == label for label in self.metric_labels.values()):
+                        child.setStyleSheet("color: #666; margin-bottom: 5px; border: none;")
+
+    def update_elapsed_time(self):
+        
+        if self.start_time and 'time_elapsed' in self.metric_labels:
+            elapsed = time.time() - self.start_time
+            minutes = int(elapsed // 60)
+            seconds = int(elapsed % 60)
+            self.metric_labels['time_elapsed'].setText(f"{minutes:02d}:{seconds:02d}")
+
+    # ------------------------ Calculate ECG Intervals ------------------------
 
     def calculate_ecg_intervals(self, lead_ii_data):
         if not lead_ii_data or len(lead_ii_data) < 100:
@@ -840,6 +1040,52 @@ class ECGTestPage(QWidget):
         msg.setText(help_text)
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
+
+    # ------------------------ Capture Screen Details ------------------------
+
+    def capture_screen(self):
+        try:
+            
+            # Get the main window
+            main_window = self.window()
+            
+            # Create a timer to delay the capture slightly to ensure UI is ready
+            def delayed_capture():
+                # Capture the entire window
+                pixmap = main_window.grab()
+                
+                # Show save dialog
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    "Save Screenshot", 
+                    f"ECG_Screenshot_{QDateTime.currentDateTime().toString('yyyy-MM-dd_hh-mm-ss')}.png",
+                    "PNG Files (*.png);;JPEG Files (*.jpg);;All Files (*)"
+                )
+                
+                if filename:
+                    # Save the screenshot
+                    if pixmap.save(filename):
+                        QMessageBox.information(
+                            self, 
+                            "Success", 
+                            f"Screenshot saved successfully!\nLocation: {filename}"
+                        )
+                    else:
+                        QMessageBox.warning(
+                            self, 
+                            "Error", 
+                            "Failed to save screenshot."
+                        )
+            
+            # Use a short delay to ensure the UI is fully rendered
+            QTimer.singleShot(100, delayed_capture)
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                "Error", 
+                f"Failed to capture screenshot: {str(e)}"
+            )
 
     # ------------------------ Recording Details ------------------------
 
@@ -1396,6 +1642,10 @@ class ECGTestPage(QWidget):
             self.timer.start(50)
             if hasattr(self, '_12to1_timer'):
                 self._12to1_timer.start(100)
+
+            # Start elapsed time tracking
+            self.start_time = time.time()
+            self.elapsed_timer.start(1000)
                 
             print("Serial connection established successfully!")
             
@@ -1419,6 +1669,10 @@ class ECGTestPage(QWidget):
         self.timer.stop()
         if hasattr(self, '_12to1_timer'):
             self._12to1_timer.stop()
+
+        # Stop elapsed time tracking
+        self.elapsed_timer.stop()
+        self.start_time = None
 
         # --- Calculate and update metrics on dashboard ---
         if hasattr(self, 'dashboard_callback'):
@@ -1658,7 +1912,9 @@ class ECGTestPage(QWidget):
         win.show()
         self._sequential_win = win
 
-    def show_all_leads_overlay(self):
+    # ------------------------------------ 12 leads overlay --------------------------------------------
+
+    def twelve_leads_overlay(self):
         # If overlay is already shown, hide it and restore original layout
         if hasattr(self, '_overlay_active') and self._overlay_active:
             self._restore_original_layout()
@@ -2222,3 +2478,269 @@ class ECGTestPage(QWidget):
         
         # Force redraw of original plots
         self.redraw_all_plots()
+
+    # ------------------------------------ 6 leads overlay --------------------------------------------
+
+    def six_leads_overlay(self):
+        # If overlay is already shown, hide it and restore original layout
+        if hasattr(self, '_overlay_active') and self._overlay_active:
+            self._restore_original_layout()
+            return
+        
+        # Store the original plot area layout
+        self._store_original_layout()
+        
+        # Create the 2-column overlay widget
+        self._create_two_column_overlay_widget()
+        
+        # Replace the plot area with overlay
+        self._replace_plot_area_with_overlay()
+        
+        # Mark overlay as active
+        self._overlay_active = True
+
+        self._apply_current_overlay_mode()
+
+    def _create_two_column_overlay_widget(self):
+        from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFrame
+        
+        # Create overlay container
+        self._overlay_widget = QWidget()
+        self._overlay_widget.setStyleSheet("""
+            QWidget {
+                background: #000;
+                border: 2px solid #ff6600;
+                border-radius: 15px;
+            }
+        """)
+        
+        # Main layout for overlay
+        overlay_layout = QVBoxLayout(self._overlay_widget)
+        overlay_layout.setContentsMargins(20, 20, 20, 20)
+        overlay_layout.setSpacing(15)
+        
+        # Top control panel with close button and mode controls
+        top_panel = QFrame()
+        top_panel.setStyleSheet("""
+            QFrame {
+                background: rgba(255, 255, 255, 0.1);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 15px;
+                padding: 10px;
+            }
+        """)
+        top_layout = QHBoxLayout(top_panel)
+        top_layout.setContentsMargins(15, 10, 15, 10)
+        top_layout.setSpacing(20)
+        
+        # Close button
+        close_btn = QPushButton("Close Overlay")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 2px solid #ff6600;
+                border-radius: 10px;
+                padding: 10px 20px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 2px solid #ff8c42;
+            }
+        """)
+        close_btn.clicked.connect(self._restore_original_layout)
+        
+        # Mode control buttons with highlighting
+        self.light_mode_btn = QPushButton("Light Mode")
+        self.dark_mode_btn = QPushButton("Dark Mode")
+        self.graph_mode_btn = QPushButton("Graph Mode")
+        
+        # Store current mode for highlighting
+        self._current_overlay_mode = "dark"  # Default mode
+        
+        button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+            }
+        """
+        
+        active_button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                color: white;
+                border: 3px solid #ff6600;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: bold;
+                min-width: 100px;
+                box-shadow: 0 4px 12px rgba(255,102,0,0.4);
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ff8c42, stop:1 #ff6600);
+                border: 3px solid #ff8c42;
+            }
+        """
+        
+        self.light_mode_btn.setStyleSheet(button_style)
+        self.dark_mode_btn.setStyleSheet(button_style)
+        self.graph_mode_btn.setStyleSheet(button_style)
+        
+        # Add widgets to top panel
+        top_layout.addWidget(close_btn)
+        top_layout.addStretch()
+        top_layout.addWidget(self.light_mode_btn)
+        top_layout.addWidget(self.dark_mode_btn)
+        top_layout.addWidget(self.graph_mode_btn)
+        
+        overlay_layout.addWidget(top_panel)
+        
+        # Create the 2-column matplotlib figure
+        self._create_two_column_figure(overlay_layout)
+        
+        # Connect mode buttons
+        self.light_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("light"))
+        self.dark_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("dark"))
+        self.graph_mode_btn.clicked.connect(lambda: self._apply_overlay_mode("graph"))
+        
+        # Apply default dark mode and highlight it
+        self._apply_overlay_mode("dark")
+
+    def _create_two_column_figure(self, overlay_layout):
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        import numpy as np
+        
+        # Define the two columns of leads
+        left_leads = ["I", "II", "III", "aVR", "aVL", "aVF"]
+        right_leads = ["V1", "V2", "V3", "V4", "V5", "V6"]
+        
+        # Create figure with 2 columns and 6 rows
+        fig = Figure(figsize=(16, 12), facecolor='none')
+        
+        # Adjust subplot parameters for better spacing
+        fig.subplots_adjust(left=0.05, right=0.95, top=0.98, bottom=0.02, hspace=0.15, wspace=0.1)
+        
+        self._overlay_axes = []
+        self._overlay_lines = []
+        
+        # Create left column (limb leads)
+        for idx, lead in enumerate(left_leads):
+            ax = fig.add_subplot(6, 2, 2*idx + 1)
+            ax.set_facecolor('none')
+            
+            # Remove all borders and spines
+
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            
+            # Remove all ticks and labels for cleaner look
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_ylabel(lead, color='#00ff00', fontsize=12, fontweight='bold', labelpad=20)
+            
+            # Create line with initial data
+            line, = ax.plot(np.arange(self.buffer_size), [np.nan]*self.buffer_size, color="#00ff00", lw=1.5)
+            self._overlay_axes.append(ax)
+            self._overlay_lines.append(line)
+        
+        # Create right column (chest leads)
+        for idx, lead in enumerate(right_leads):
+            ax = fig.add_subplot(6, 2, 2*idx + 2)
+            ax.set_facecolor('none')
+            
+            # Remove all borders and spines
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            
+            # Remove all ticks and labels for cleaner look
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_ylabel(lead, color='#00ff00', fontsize=12, fontweight='bold', labelpad=20)
+            
+            # Create line with initial data
+            line, = ax.plot(np.arange(self.buffer_size), [np.nan]*self.buffer_size, color="#00ff00", lw=1.5)
+            self._overlay_axes.append(ax)
+            self._overlay_lines.append(line)
+        
+        self._overlay_canvas = FigureCanvas(fig)
+        overlay_layout.addWidget(self._overlay_canvas)
+        
+        # Start update timer for overlay
+        self._overlay_timer = QTimer(self)
+        self._overlay_timer.timeout.connect(self._update_two_column_plots)
+        self._overlay_timer.start(100)
+
+    def _update_two_column_plots(self):
+        if not hasattr(self, '_overlay_lines') or not self._overlay_lines:
+            return
+        
+        # Define the two columns of leads
+        left_leads = ["I", "II", "III", "aVR", "aVL", "aVF"]
+        right_leads = ["V1", "V2", "V3", "V4", "V5", "V6"]
+        all_leads = left_leads + right_leads
+        
+        for idx, lead in enumerate(all_leads):
+            if idx < len(self._overlay_lines):
+                data = self.data.get(lead, [])
+                line = self._overlay_lines[idx]
+                ax = self._overlay_axes[idx]
+                
+                plot_data = np.full(self.buffer_size, np.nan)
+                
+                if data and len(data) > 0:
+                    n = min(len(data), self.buffer_size)
+                    centered = np.array(data[-n:]) - np.mean(data[-n:])
+                    
+                    # Apply current gain setting
+                    gain_factor = self.settings_manager.get_wave_gain() / 10.0
+                    centered = centered * gain_factor
+                    
+                    if n < self.buffer_size:
+                        stretched = np.interp(
+                            np.linspace(0, n-1, self.buffer_size),
+                            np.arange(n),
+                            centered
+                        )
+                        plot_data[:] = stretched
+                    else:
+                        plot_data[-n:] = centered
+                    
+                    # Set dynamic y-limits based on data
+                    ymin = np.min(centered) - 100
+                    ymax = np.max(centered) + 100
+                    if ymin == ymax:
+                        ymin, ymax = -500, 500
+                    
+                    # Ensure y-limits are reasonable
+                    ymin = max(-1000, ymin)
+                    ymax = min(1000, ymax)
+                    
+                    ax.set_ylim(ymin, ymax)
+                else:
+                    ax.set_ylim(-500, 500)
+                
+                # Set x-limits
+                ax.set_xlim(0, self.buffer_size-1)
+                line.set_ydata(plot_data)
+        
+        if hasattr(self, '_overlay_canvas'):
+            self._overlay_canvas.draw_idle()

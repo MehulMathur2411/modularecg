@@ -2489,7 +2489,7 @@ class ECGMenu(QGroupBox):
                 container.layout().removeItem(item)
 
         fields = [("Year", "2025"), ("Month", "06"), ("Day", "17"),
-                ("Hour", "12"), ("Minute", "00"), ("Second", "00")]
+                ("Hour", "12"), ("Minute", "00"), ("Secs", "00")]
         
         entries = {}
         time_frame = QFrame()
@@ -2519,7 +2519,7 @@ class ECGMenu(QGroupBox):
                     color: #2c3e50;
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
                         stop:0 #f8f9fa, stop:1 #e9ecef);
-                    padding: 12px;
+                    padding: 10px;
                     border: 2px solid #e0e0e0;
                     border-radius: 8px;
                     min-height: 40px;

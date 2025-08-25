@@ -188,7 +188,6 @@ class SlidingPanel(QWidget):
         self.spacing_size = spacing_size
         
     def update_responsive_sizing(self):
-        """Update panel sizing when parent size changes"""
         if self.parent:
             parent_width = self.parent.width()
             parent_height = self.parent.height()
@@ -218,7 +217,6 @@ class SlidingPanel(QWidget):
                     self.reposition_panel()
         
     def reposition_panel(self):
-        """Reposition panel after size changes"""
         if self.parent and self.is_visible:
             target_x = self.parent.width() - self.width() - 20
             target_y = (self.parent.height() - self.height()) // 2
@@ -272,7 +270,6 @@ class SlidingPanel(QWidget):
             self.animation.start()
 
     def make_content_responsive(self, content_widget):
-        """Make content widget responsive to panel size"""
         if hasattr(content_widget, 'layout'):
             layout = content_widget.layout()
             if layout:
@@ -288,7 +285,6 @@ class SlidingPanel(QWidget):
                 self.make_children_responsive(content_widget)
     
     def make_children_responsive(self, parent_widget):
-        """Recursively make child widgets responsive"""
         for child in parent_widget.findChildren(QWidget):
             if hasattr(child, 'setFixedSize'):
                 # Adjust fixed sizes for smaller panels
@@ -340,7 +336,6 @@ class SlidingPanel(QWidget):
         self.is_animating = False
 
     def resizeEvent(self, event):
-        """Handle resize events for responsiveness"""
         super().resizeEvent(event)
         if self.parent and self.is_visible:
             self.reposition_panel()
@@ -393,7 +388,6 @@ class ECGMenu(QGroupBox):
         QTimer.singleShot(100, self.setup_global_resize_monitoring)
 
     def setup_parent_monitoring(self, parent_widget):
-        """Setup monitoring of parent widget for responsive updates"""
         self.parent_widget = parent_widget
         
         # Find the main parent widget that contains the grid
@@ -406,7 +400,6 @@ class ECGMenu(QGroupBox):
             main_parent.resizeEvent = self.create_resize_handler(main_parent.resizeEvent)
             
     def create_resize_handler(self, original_resize_event):
-        """Create a resize event handler that updates the sliding panel"""
         def resize_handler(event):
             # Call original resize event
             if original_resize_event:
@@ -419,7 +412,6 @@ class ECGMenu(QGroupBox):
         return resize_handler
 
     def setup_global_resize_monitoring(self):
-        """Setup global resize monitoring for all windows"""
         app = QApplication.instance()
         if app:
             # Monitor all top-level windows
@@ -429,7 +421,6 @@ class ECGMenu(QGroupBox):
                     widget.resizeEvent = self.create_global_resize_handler(original_resize)
     
     def create_global_resize_handler(self, original_resize_event):
-        """Create a global resize event handler"""
         def global_resize_handler(event):
             # Call original resize event
             if original_resize_event:
@@ -464,7 +455,6 @@ class ECGMenu(QGroupBox):
         self.show_exit()
 
     def create_scrollable_content(self, content_widget):
-        """Create a scrollable wrapper for content widgets"""
         from PyQt5.QtWidgets import QScrollArea
         
         scroll_area = QScrollArea()
@@ -569,7 +559,6 @@ class ECGMenu(QGroupBox):
         self.show_sliding_panel(content_widget, "Save ECG Details", "Save ECG")
 
     def create_save_ecg_content(self):
-        """Create responsive Save ECG content widget"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
@@ -793,7 +782,7 @@ class ECGMenu(QGroupBox):
 
         layout.addWidget(form_frame)
 
-        # Submit logic (unchanged)
+        # Submit logic
         def submit_details():
             values = {label: entries[label].text().strip() for label in labels + ["Age"]}
             values["Gender"] = gender_menu.currentText()
@@ -894,12 +883,10 @@ class ECGMenu(QGroupBox):
         self.show_sliding_panel(content_widget, "Open ECG Files", "Open ECG")
 
     def create_open_ecg_content(self):
-        """Create the open ECG content widget - matching original design"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)  # Keep original margins
+        layout.setContentsMargins(20, 20, 20, 20)
 
-        # Enhanced title with modern styling
         title = QLabel("Open ECG")
         title.setStyleSheet("""
             QLabel {
@@ -919,7 +906,7 @@ class ECGMenu(QGroupBox):
 
         # ---------------------- Top 4 Equal Boxes ----------------------
         top_info_frame = QFrame()
-        top_info_frame.setStyleSheet("background-color: white;")  # Keep original background
+        top_info_frame.setStyleSheet("background-color: white;")
         layout.addWidget(top_info_frame)
 
         box_frame = QFrame()
@@ -931,7 +918,7 @@ class ECGMenu(QGroupBox):
             }
         """)
         box_layout = QHBoxLayout(box_frame)
-        box_layout.setContentsMargins(0, 0, 0, 0)  # Keep original margins
+        box_layout.setContentsMargins(0, 0, 0, 0)
         top_info_frame.setLayout(QVBoxLayout())
         top_info_frame.layout().addWidget(box_frame)
 
@@ -946,7 +933,7 @@ class ECGMenu(QGroupBox):
                     padding: 8px;
                 }
             """)
-            lbl.setFixedWidth(130)  # Keep original width
+            lbl.setFixedWidth(130)
             lbl.setAlignment(Qt.AlignCenter)
             return lbl
 
@@ -971,7 +958,7 @@ class ECGMenu(QGroupBox):
             }
         """)
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(5, 5, 5, 5)  # Keep original margins
+        header_layout.setContentsMargins(5, 5, 5, 5)
 
         def create_header_cell(text):
             lbl = QLabel(text)
@@ -983,7 +970,7 @@ class ECGMenu(QGroupBox):
                     padding: 8px;
                 }
             """)
-            lbl.setFixedWidth(150)  # Keep original width
+            lbl.setFixedWidth(150)
             lbl.setAlignment(Qt.AlignCenter)
             return lbl
 
@@ -998,7 +985,7 @@ class ECGMenu(QGroupBox):
 
         # ---------------------- Data Rows ----------------------------
         rows_frame = QFrame()
-        rows_frame.setStyleSheet("background-color: white;")  # Keep original background
+        rows_frame.setStyleSheet("background-color: white;")
         rows_layout = QVBoxLayout(rows_frame)
 
         def create_row_cell(text):
@@ -1012,7 +999,7 @@ class ECGMenu(QGroupBox):
                     padding: 6px;
                 }
             """)
-            lbl.setFixedWidth(150)  # Keep original width
+            lbl.setFixedWidth(150)
             lbl.setAlignment(Qt.AlignCenter)
             return lbl
 
@@ -1091,13 +1078,12 @@ class ECGMenu(QGroupBox):
                 return handler
 
             btn = QPushButton(text)
-            btn.setFixedWidth(150)  # Keep original width
-            btn.setFixedHeight(30)  # Keep original height
+            btn.setFixedWidth(150)
+            btn.setFixedHeight(30)
             btn.clicked.connect(make_handler())
             button_layout.addWidget(btn, r, c)
             buttons_dict[text] = btn
 
-        # Initialize button styles
         update_button_styles()
 
         return widget
@@ -1105,7 +1091,7 @@ class ECGMenu(QGroupBox):
     def vertical_divider(self, width=3):
         
         frame = QFrame()
-        frame.setFixedWidth(width)  # Keep original width
+        frame.setFixedWidth(width)
         frame.setStyleSheet("""
             QFrame {
                 background-color: #ff6600;
@@ -1126,10 +1112,9 @@ class ECGMenu(QGroupBox):
         
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(40, 40, 40, 40)  # Keep original margins
-        layout.setSpacing(25)  # Keep original spacing
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(25)
 
-        # Enhanced title with modern styling
         title = QLabel("Working Mode")
         title.setStyleSheet("""
             QLabel {
@@ -1226,7 +1211,7 @@ class ECGMenu(QGroupBox):
         # Get current settings from settings manager
         self.settings_manager = SettingsManager()
 
-        # Variables (dict-based because PyQt doesn't have tk.StringVar)
+        # Variables
         wave_speed = {"value": "50"}
         wave_gain = {"value": "10"}
         lead_seq = {"value": "Standard"}
@@ -1247,7 +1232,6 @@ class ECGMenu(QGroupBox):
         add_section("Priority Storage", [("U Disk", "U"), ("SD Card", "SD")], 
                     {"value": self.settings_manager.get_setting("storage")}, "storage")
 
-        # Enhanced buttons with modern styling
         btn_frame = QFrame()
         btn_frame.setStyleSheet("""
             QFrame {
@@ -1256,11 +1240,10 @@ class ECGMenu(QGroupBox):
             }
         """)
         btn_layout = QHBoxLayout(btn_frame)
-        btn_layout.setSpacing(20)  # Keep original spacing
+        btn_layout.setSpacing(20)
 
-        # Enhanced OK button
         ok_btn = QPushButton("OK")
-        ok_btn.setFixedSize(140, 50)  # Keep original size
+        ok_btn.setFixedSize(140, 50)
         ok_btn.setStyleSheet("""
             QPushButton {
                 font: bold 14pt Arial;
@@ -1286,9 +1269,8 @@ class ECGMenu(QGroupBox):
         ok_btn.clicked.connect(self.save_working_mode_settings)
         btn_layout.addWidget(ok_btn)
 
-        # Enhanced Exit button
         exit_btn = QPushButton("Exit")
-        exit_btn.setFixedSize(140, 50)  # Keep original size
+        exit_btn.setFixedSize(140, 50)
         exit_btn.setStyleSheet("""
             QPushButton {
                 font: bold 14pt Arial;
@@ -1325,7 +1307,6 @@ class ECGMenu(QGroupBox):
         # Save to settings manager
         self.settings_manager.set_setting(key, value)
         
-        # CRITICAL FIX: Call the callback if it exists
         if hasattr(self, 'settings_changed_callback') and self.settings_changed_callback:
             print(f"Calling settings callback for {key}={value}")
             self.settings_changed_callback(key, value)
@@ -1348,8 +1329,281 @@ class ECGMenu(QGroupBox):
         QMessageBox.information(self.parent(), "Saved", "Working mode settings saved and applied to ECG display")
         self.hide_sliding_panel()
 
+    # ----------------------------- Printer Setup -----------------------------
+
+    def show_printer_setup(self):
+        content_widget = self.create_printer_setup_content()
+        self.show_sliding_panel(content_widget, "Printer Setup", "Printer Setup")
+
+    def create_printer_setup_content(self):
+        
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(30, 30, 30, 30)
+
+        title = QLabel("Rec Setup")
+        title.setStyleSheet("""
+            QLabel {
+                font: bold 12pt Arial;
+                color: white;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #ff6600, stop:1 #ff8c42);
+                border: 2px solid #ff6600;
+                border-radius: 10px;
+                padding: 15px;
+                margin: 5px;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        """)
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        # Variables
+        auto_format = {"value": "3x4"}
+        analysis_result = {"value": "on"}
+        avg_wave = {"value": "on"}
+        selected_rhythm_lead = {"value": "off"}
+        sensitivity = {"value": "High"}
+
+        def add_radiobutton_group(title, options, variable):
+            group = QGroupBox(title)
+            group.setStyleSheet("""
+                QGroupBox {
+                    font: bold 12pt Arial;
+                    background-color: white;
+                    border: 2px solid #ff6600;
+                    border-radius: 8px;
+                    padding: 10px;
+                    margin: 5px;
+                }
+                QGroupBox:title {
+                    color: #ff6600;
+                    font-weight: bold;
+                }
+            """)
+            group_layout = QHBoxLayout(group)
+            group_layout.setSpacing(10)
+            
+            for opt in options:
+                btn = QRadioButton(opt)
+                btn.setStyleSheet("""
+                    QRadioButton {
+                        font: 10pt Arial;
+                        background-color: white;
+                        border: 1px solid #e0e0e0;
+                        border-radius: 5px;
+                        padding: 8px;
+                        margin: 2px;
+                    }
+                    QRadioButton:hover {
+                        border: 1px solid #ffb347;
+                        background: #fff8f0;
+                    }
+                    QRadioButton:checked {
+                        border: 1px solid #ff6600;
+                        background: #fff0e0;
+                        color: #ff6600;
+                    }
+                """)
+                btn.setChecked(variable["value"] == opt)
+                btn.toggled.connect(lambda checked, val=opt: variable.update({"value": val}) if checked else None)
+                group_layout.addWidget(btn)
+            layout.addWidget(group)
+
+        add_radiobutton_group("Auto Rec Format", ["3x4", "3x2+2x3"], auto_format)
+        add_radiobutton_group("Analysis Result", ["on", "off"], analysis_result)
+        add_radiobutton_group("Avg Wave", ["on", "off"], avg_wave)
+
+        rhythm_group = QGroupBox("Rhythm Lead")
+        rhythm_group.setStyleSheet("""
+            QGroupBox {
+                font: bold 12pt Arial;
+                background-color: white;
+                border: 2px solid #ff6600;
+                border-radius: 8px;
+                padding: 10px;
+                margin: 5px;
+            }
+            QGroupBox:title {
+                color: #ff6600;
+                font-weight: bold;
+            }
+        """)
+        rhythm_layout = QVBoxLayout(rhythm_group)
+        rhythm_layout.setSpacing(5)
+        
+        row1 = QHBoxLayout()
+        row1.setSpacing(5)
+        row2 = QHBoxLayout()
+        row2.setSpacing(5)
+        
+        lead_options = ["off", "I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+        for i, lead in enumerate(lead_options):
+            btn = QRadioButton(lead)
+            btn.setStyleSheet("""
+                QRadioButton {
+                    font: 10pt Arial;
+                    background-color: white;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    padding: 6px;
+                    margin: 1px;
+                }
+                QRadioButton:hover {
+                    border: 1px solid #ffb347;
+                    background: #fff8f0;
+                }
+                QRadioButton:checked {
+                    border: 1px solid #ff6600;
+                    background: #fff0e0;
+                    color: #ff6600;
+                }
+            """)
+            btn.setChecked(selected_rhythm_lead["value"] == lead)
+            btn.toggled.connect(lambda checked, val=lead: selected_rhythm_lead.update({"value": val}) if checked else None)
+            if i < 7:
+                row1.addWidget(btn)
+            else:
+                row2.addWidget(btn)
+        rhythm_layout.addLayout(row1)
+        rhythm_layout.addLayout(row2)
+        layout.addWidget(rhythm_group)
+
+        time_group = QGroupBox("Automatic Time (sec/Lead)")
+        time_group.setStyleSheet("""
+            QGroupBox {
+                font: bold 12pt Arial;
+                background-color: white;
+                border: 2px solid #ff6600;
+                border-radius: 8px;
+                padding: 10px;
+                margin: 5px;
+            }
+            QGroupBox:title {
+                color: #ff6600;
+                font-weight: bold;
+            }
+        """)
+        time_layout = QVBoxLayout(time_group)
+        time_layout.setSpacing(5)
+
+        time_entry = QLineEdit()
+        time_entry.setReadOnly(True)
+        time_entry.setText("3")
+        time_entry.setStyleSheet("""
+            QLineEdit {
+                font: 10pt Arial;
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                padding: 8px;
+                margin: 2px;
+            }
+            QLineEdit:hover {
+                border: 1px solid #ffb347;
+                background: #fafafa;
+            }
+        """)
+        time_entry.mousePressEvent = lambda event: self.open_keypad(time_entry)
+        time_layout.addWidget(time_entry)
+        layout.addWidget(time_group)
+
+        sens_group = QGroupBox("Analysis Sensitivity")
+        sens_group.setStyleSheet("""
+            QGroupBox {
+                font: bold 12pt Arial;
+                background-color: white;
+                border: 2px solid #ff6600;
+                border-radius: 8px;
+                padding: 10px;
+                margin: 5px;
+            }
+            QGroupBox:title {
+                color: #ff6600;
+                font-weight: bold;
+            }
+        """)
+        sens_layout = QHBoxLayout(sens_group)
+        sens_layout.setSpacing(10)
+        
+        for val in ["Low", "Med", "High"]:
+            btn = QRadioButton(val)
+            btn.setStyleSheet("""
+                QRadioButton {
+                    font: 10pt Arial;
+                    background-color: white;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 5px;
+                    padding: 8px;
+                    margin: 2px;
+                }
+                QRadioButton:hover {
+                    border: 1px solid #ffb347;
+                    background: #fff8f0;
+                }
+                QRadioButton:checked {
+                    border: 1px solid #ff6600;
+                    background: #fff0e0;
+                    color: #ff6600;
+                }
+            """)
+            btn.setChecked(sensitivity["value"] == val)
+            btn.toggled.connect(lambda checked, v=val: sensitivity.update({"value": v}) if checked else None)
+            sens_layout.addWidget(btn)
+        layout.addWidget(sens_group)
+
+        btn_frame = QFrame()
+        btn_frame.setStyleSheet("background-color: white;")
+        btn_layout = QHBoxLayout(btn_frame)
+        btn_layout.setSpacing(15)
+
+        ok_btn = QPushButton("OK")
+        ok_btn.setFixedWidth(150)
+        ok_btn.setStyleSheet("""
+            QPushButton {
+                font: 12pt Arial;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #4CAF50, stop:1 #45a049);
+                color: white;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #45a049, stop:1 #4CAF50);
+                border: 2px solid #45a049;
+            }
+        """)
+        ok_btn.clicked.connect(lambda: QMessageBox.information(self.parent(), "Saved", "Printer setup saved"))
+        btn_layout.addWidget(ok_btn)
+
+        exit_btn = QPushButton("Exit")
+        exit_btn.setFixedWidth(150)
+        exit_btn.setStyleSheet("""
+            QPushButton {
+                font: 12pt Arial;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #f44336, stop:1 #d32f2f);
+                color: white;
+                border: 2px solid #f44336;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #d32f2f, stop:1 #f44336);
+                border: 2px solid #d32f2f;
+            }
+        """)
+        exit_btn.clicked.connect(self.hide_sliding_panel)
+        btn_layout.addWidget(exit_btn)
+
+        layout.addWidget(btn_frame)
+        
+        return widget
+
     def open_keypad(self, entry_widget, parent_dialog=None):
-        """Open keypad for numeric input"""
         try:
             # Remove existing keypad if any
             if hasattr(self, 'keypad_frame'):
@@ -1357,13 +1611,11 @@ class ECGMenu(QGroupBox):
         except (NameError, RuntimeError):
             pass
 
-        # Create keypad frame
         self.keypad_frame = QFrame(entry_widget.parent())
         self.keypad_frame.setStyleSheet("background-color: lightgray; border: 1px solid black;")
         keypad_layout = QGridLayout(self.keypad_frame)
         keypad_layout.setSpacing(4)
 
-        # Input display
         input_var = QLineEdit()
         input_var.setText(entry_widget.text())
         input_var.setReadOnly(True)
@@ -1406,21 +1658,18 @@ class ECGMenu(QGroupBox):
             btn.clicked.connect(lambda _, t=text: update_display(t))
             keypad_layout.addWidget(btn, row, col)
 
-        # ← Back
         btn_back = QPushButton("←")
         btn_back.setFixedWidth(40)
         btn_back.setStyleSheet("font: 10pt Arial;")
         btn_back.clicked.connect(backspace)
         keypad_layout.addWidget(btn_back, 4, 0)
 
-        # Clear
         btn_clear = QPushButton("C")
         btn_clear.setFixedWidth(40)
         btn_clear.setStyleSheet("font: 10pt Arial;")
         btn_clear.clicked.connect(clear)
         keypad_layout.addWidget(btn_clear, 4, 2)
 
-        # OK
         btn_ok = QPushButton("OK")
         btn_ok.setStyleSheet("font: bold 10pt Arial; background-color: green; color: white;")
         btn_ok.setFixedWidth(120)
@@ -1432,287 +1681,6 @@ class ECGMenu(QGroupBox):
         if parent_layout:
             parent_layout.addWidget(self.keypad_frame)
 
-    # ----------------------------- Printer Setup -----------------------------
-
-    def show_printer_setup(self):
-        content_widget = self.create_printer_setup_content()
-        self.show_sliding_panel(content_widget, "Printer Setup", "Printer Setup")
-
-    def create_printer_setup_content(self):
-        
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(30, 30, 30, 30)  # Keep original margins
-
-        # Enhanced title with modern styling
-        title = QLabel("Rec Setup")
-        title.setStyleSheet("""
-            QLabel {
-                font: bold 12pt Arial;
-                color: white;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                    stop:0 #ff6600, stop:1 #ff8c42);
-                border: 2px solid #ff6600;
-                border-radius: 10px;
-                padding: 15px;
-                margin: 5px;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            }
-        """)
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-
-        # Variables (dicts to mimic StringVar)
-        auto_format = {"value": "3x4"}
-        analysis_result = {"value": "on"}
-        avg_wave = {"value": "on"}
-        selected_rhythm_lead = {"value": "off"}
-        sensitivity = {"value": "High"}
-
-        def add_radiobutton_group(title, options, variable):
-            group = QGroupBox(title)
-            group.setStyleSheet("""
-                QGroupBox {
-                    font: bold 12pt Arial;
-                    background-color: white;
-                    border: 2px solid #ff6600;
-                    border-radius: 8px;
-                    padding: 10px;
-                    margin: 5px;
-                }
-                QGroupBox:title {
-                    color: #ff6600;
-                    font-weight: bold;
-                }
-            """)
-            group_layout = QHBoxLayout(group)
-            group_layout.setSpacing(10)  # Keep original spacing
-            
-            for opt in options:
-                btn = QRadioButton(opt)
-                btn.setStyleSheet("""
-                    QRadioButton {
-                        font: 10pt Arial;
-                        background-color: white;
-                        border: 1px solid #e0e0e0;
-                        border-radius: 5px;
-                        padding: 8px;
-                        margin: 2px;
-                    }
-                    QRadioButton:hover {
-                        border: 1px solid #ffb347;
-                        background: #fff8f0;
-                    }
-                    QRadioButton:checked {
-                        border: 1px solid #ff6600;
-                        background: #fff0e0;
-                        color: #ff6600;
-                    }
-                """)
-                btn.setChecked(variable["value"] == opt)
-                btn.toggled.connect(lambda checked, val=opt: variable.update({"value": val}) if checked else None)
-                group_layout.addWidget(btn)
-            layout.addWidget(group)
-
-        add_radiobutton_group("Auto Rec Format", ["3x4", "3x2+2x3"], auto_format)
-        add_radiobutton_group("Analysis Result", ["on", "off"], analysis_result)
-        add_radiobutton_group("Avg Wave", ["on", "off"], avg_wave)
-
-        # Enhanced Rhythm Lead Group
-        rhythm_group = QGroupBox("Rhythm Lead")
-        rhythm_group.setStyleSheet("""
-            QGroupBox {
-                font: bold 12pt Arial;
-                background-color: white;
-                border: 2px solid #ff6600;
-                border-radius: 8px;
-                padding: 10px;
-                margin: 5px;
-            }
-            QGroupBox:title {
-                color: #ff6600;
-                font-weight: bold;
-            }
-        """)
-        rhythm_layout = QVBoxLayout(rhythm_group)
-        rhythm_layout.setSpacing(5)  # Keep original spacing
-        
-        row1 = QHBoxLayout()
-        row1.setSpacing(5)  # Keep original spacing
-        row2 = QHBoxLayout()
-        row2.setSpacing(5)  # Keep original spacing
-        
-        lead_options = ["off", "I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
-        for i, lead in enumerate(lead_options):
-            btn = QRadioButton(lead)
-            btn.setStyleSheet("""
-                QRadioButton {
-                    font: 10pt Arial;
-                    background-color: white;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 4px;
-                    padding: 6px;
-                    margin: 1px;
-                }
-                QRadioButton:hover {
-                    border: 1px solid #ffb347;
-                    background: #fff8f0;
-                }
-                QRadioButton:checked {
-                    border: 1px solid #ff6600;
-                    background: #fff0e0;
-                    color: #ff6600;
-                }
-            """)
-            btn.setChecked(selected_rhythm_lead["value"] == lead)
-            btn.toggled.connect(lambda checked, val=lead: selected_rhythm_lead.update({"value": val}) if checked else None)
-            if i < 7:
-                row1.addWidget(btn)
-            else:
-                row2.addWidget(btn)
-        rhythm_layout.addLayout(row1)
-        rhythm_layout.addLayout(row2)
-        layout.addWidget(rhythm_group)
-
-        # Enhanced Auto Time Group
-        time_group = QGroupBox("Automatic Time (sec/Lead)")
-        time_group.setStyleSheet("""
-            QGroupBox {
-                font: bold 12pt Arial;
-                background-color: white;
-                border: 2px solid #ff6600;
-                border-radius: 8px;
-                padding: 10px;
-                margin: 5px;
-            }
-            QGroupBox:title {
-                color: #ff6600;
-                font-weight: bold;
-            }
-        """)
-        time_layout = QVBoxLayout(time_group)
-        time_layout.setSpacing(5)  # Keep original spacing
-
-        time_entry = QLineEdit()
-        time_entry.setReadOnly(True)
-        time_entry.setText("3")
-        time_entry.setStyleSheet("""
-            QLineEdit {
-                font: 10pt Arial;
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 8px;
-                margin: 2px;
-            }
-            QLineEdit:hover {
-                border: 1px solid #ffb347;
-                background: #fafafa;
-            }
-        """)
-        time_entry.mousePressEvent = lambda event: self.open_keypad(time_entry)
-        time_layout.addWidget(time_entry)
-        layout.addWidget(time_group)
-
-        # Enhanced Sensitivity Group
-        sens_group = QGroupBox("Analysis Sensitivity")
-        sens_group.setStyleSheet("""
-            QGroupBox {
-                font: bold 12pt Arial;
-                background-color: white;
-                border: 2px solid #ff6600;
-                border-radius: 8px;
-                padding: 10px;
-                margin: 5px;
-            }
-            QGroupBox:title {
-                color: #ff6600;
-                font-weight: bold;
-            }
-        """)
-        sens_layout = QHBoxLayout(sens_group)
-        sens_layout.setSpacing(10)  # Keep original spacing
-        
-        for val in ["Low", "Med", "High"]:
-            btn = QRadioButton(val)
-            btn.setStyleSheet("""
-                QRadioButton {
-                    font: 10pt Arial;
-                    background-color: white;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 5px;
-                    padding: 8px;
-                    margin: 2px;
-                }
-                QRadioButton:hover {
-                    border: 1px solid #ffb347;
-                    background: #fff8f0;
-                }
-                QRadioButton:checked {
-                    border: 1px solid #ff6600;
-                    background: #fff0e0;
-                    color: #ff6600;
-                }
-            """)
-            btn.setChecked(sensitivity["value"] == val)
-            btn.toggled.connect(lambda checked, v=val: sensitivity.update({"value": v}) if checked else None)
-            sens_layout.addWidget(btn)
-        layout.addWidget(sens_group)
-
-        # Enhanced Buttons
-        btn_frame = QFrame()
-        btn_frame.setStyleSheet("background-color: white;")  # Keep original background
-        btn_layout = QHBoxLayout(btn_frame)
-        btn_layout.setSpacing(15)  # Keep original spacing
-
-        # Enhanced OK button
-        ok_btn = QPushButton("OK")
-        ok_btn.setFixedWidth(150)  # Keep original width
-        ok_btn.setStyleSheet("""
-            QPushButton {
-                font: 12pt Arial;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #4CAF50, stop:1 #45a049);
-                color: white;
-                border: 2px solid #4CAF50;
-                border-radius: 8px;
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #45a049, stop:1 #4CAF50);
-                border: 2px solid #45a049;
-            }
-        """)
-        ok_btn.clicked.connect(lambda: QMessageBox.information(self.parent(), "Saved", "Printer setup saved"))
-        btn_layout.addWidget(ok_btn)
-
-        # Enhanced Exit button
-        exit_btn = QPushButton("Exit")
-        exit_btn.setFixedWidth(150)  # Keep original width
-        exit_btn.setStyleSheet("""
-            QPushButton {
-                font: 12pt Arial;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #f44336, stop:1 #d32f2f);
-                color: white;
-                border: 2px solid #f44336;
-                border-radius: 8px;
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #d32f2f, stop:1 #f44336);
-                border: 2px solid #d32f2f;
-            }
-        """)
-        exit_btn.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
-        btn_layout.addWidget(exit_btn)
-
-        layout.addWidget(btn_frame)
-        
-        return widget
-
     # ----------------------------- Set Filter -----------------------------
 
     def set_filter_setup(self):
@@ -1720,13 +1688,11 @@ class ECGMenu(QGroupBox):
         self.show_sliding_panel(content_widget, "Filter Settings", "Set Filter")
 
     def create_filter_setup_content(self):
-        """Create the filter setup content widget with enhanced attractive UI"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(40, 40, 40, 40)  # Increased margins
-        layout.setSpacing(30)  # Increased spacing
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(30)
 
-        # Enhanced title with modern styling
         title = QLabel("Set Filter")
         title.setStyleSheet("""
             QLabel {
@@ -1767,20 +1733,19 @@ class ECGMenu(QGroupBox):
                     background: white;
                 }
             """)
-            hbox = QHBoxLayout(group)  # Keep horizontal layout
+            hbox = QHBoxLayout(group)
             
             if title_text == "EMG Filter":
-                hbox.setSpacing(6)  # Smaller gaps for EMG filter
-                hbox.setContentsMargins(15, 5, 15, 10)  # Shift left with left margin
-                hbox.setAlignment(Qt.AlignLeft)  # Align to left
+                hbox.setSpacing(6)
+                hbox.setContentsMargins(15, 5, 15, 10)
+                hbox.setAlignment(Qt.AlignLeft)
             else:
-                hbox.setSpacing(8)  # Normal spacing for other filters
+                hbox.setSpacing(8)
                 hbox.setContentsMargins(10, 5, 10, 10)
             
             for text, val in options:
                 btn = QRadioButton(text)
                 
-                # Different styling for EMG filter buttons (smaller)
                 if title_text == "EMG Filter":
                     btn.setStyleSheet("""
                         QRadioButton {
@@ -1824,7 +1789,6 @@ class ECGMenu(QGroupBox):
                         }
                     """)
                 else:
-                    # Normal styling for other filter buttons
                     btn.setStyleSheet("""
                         QRadioButton {
                             font: 16pt Arial;
@@ -1872,7 +1836,7 @@ class ECGMenu(QGroupBox):
                 hbox.addWidget(btn)
             layout.addWidget(group)
 
-        # Filter options (internal code unchanged - keeping exact same layout)
+        # Filter options
         ac_var = {"value": "50Hz"}
         ac_options = [("off", "off"), ("50Hz", "50Hz"), ("60Hz", "60Hz")]
         add_filter_box("AC Filter", ac_options, ac_var)
@@ -1885,13 +1849,11 @@ class ECGMenu(QGroupBox):
         dft_options = [("off", "off"), ("0.05Hz", "0.05Hz"), ("0.5Hz", "0.5Hz")]
         add_filter_box("DFT Filter", dft_options, dft_var)
 
-        # Enhanced buttons with modern styling
         btn_frame = QHBoxLayout()
-        btn_frame.setSpacing(40)  # Increased spacing between buttons
+        btn_frame.setSpacing(40)
 
-        # Enhanced OK button
         ok_btn = QPushButton("OK")
-        ok_btn.setFixedSize(180, 60)  # Increased button size
+        ok_btn.setFixedSize(180, 60)
         ok_btn.setStyleSheet("""
             QPushButton {
                 font: bold 18pt Arial;
@@ -1917,9 +1879,8 @@ class ECGMenu(QGroupBox):
         ok_btn.clicked.connect(lambda: print("Saved"))
         btn_frame.addWidget(ok_btn)
 
-        # Enhanced Cancel button
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedSize(180, 60)  # Increased button size
+        cancel_btn.setFixedSize(180, 60)
         cancel_btn.setStyleSheet("""
             QPushButton {
                 font: bold 18pt Arial;
@@ -1972,12 +1933,10 @@ class ECGMenu(QGroupBox):
     # ----------------------------- System Setup -----------------------------
 
     def create_system_setup_content(self):
-        """Create the system setup content widget - matching original design"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(30, 30, 30, 30)
 
-        # Enhanced title with modern styling
         title = QLabel("System Setup")
         title.setStyleSheet("""
             QLabel {
@@ -2195,7 +2154,7 @@ class ECGMenu(QGroupBox):
             }
         """)
         
-        # Populate ports
+        #  Ports
         port_combo.addItem("Select Port")
         try:
             import serial.tools.list_ports
@@ -2205,7 +2164,7 @@ class ECGMenu(QGroupBox):
         except:
             pass
         
-        # Set current value from settings - fix the parent reference
+        # Set current value from settings
         current_port = "Select Port"
         try:
             # Try to get settings from the parent widget's settings manager
@@ -2270,11 +2229,11 @@ class ECGMenu(QGroupBox):
             }
         """)
         
-        # Add baud rate options and make sure they're visible
+        # Add baud rate options
         baud_rates = ["9600", "19200", "38400", "57600", "115200"]
         baud_combo.addItems(baud_rates)
         
-        # Set current value from settings - fix the parent reference
+        # Set current value from settings
         current_baud = "115200"
         try:
             # Try to get settings from the parent widget's settings manager
@@ -2287,7 +2246,6 @@ class ECGMenu(QGroupBox):
         
         baud_combo.setCurrentText(current_baud)
         
-        # Add refresh button for ports
         refresh_btn = QPushButton("Refresh Ports")
         refresh_btn.setStyleSheet("""
             QPushButton {
@@ -2321,7 +2279,6 @@ class ECGMenu(QGroupBox):
         
         refresh_btn.clicked.connect(refresh_ports)
         
-        # Improved layout for port settings with better spacing
         port_row = QHBoxLayout()
         port_row.setSpacing(15)
         port_row.addWidget(port_label)
@@ -2335,7 +2292,6 @@ class ECGMenu(QGroupBox):
         baud_row.addWidget(baud_combo)
         baud_row.addStretch()
         
-        # Add some spacing between rows
         serial_inner.addLayout(port_row)
         serial_inner.addSpacing(10)
         serial_inner.addLayout(baud_row)
@@ -2343,7 +2299,6 @@ class ECGMenu(QGroupBox):
 
         layout.addWidget(inner_frame)
 
-        # Enhanced Time Setup Button
         time_btn = QPushButton("Time Setup >>")
         time_btn.setFixedHeight(50)
         time_btn.setStyleSheet("""
@@ -2371,7 +2326,6 @@ class ECGMenu(QGroupBox):
         time_btn.clicked.connect(lambda: self.show_time_setup_inside(widget))
         layout.addWidget(time_btn)
 
-        # Enhanced OK/Cancel buttons
         btn_row = QHBoxLayout()
         btn_row.setSpacing(20)
         
@@ -2557,11 +2511,9 @@ class ECGMenu(QGroupBox):
 
         container.layout().addWidget(time_frame)
 
-        # Enhanced buttons with back button
         btn_frame = QHBoxLayout()
         btn_frame.setSpacing(20)
         
-        # Back button to return to system setup
         back_btn = QPushButton("Back")
         back_btn.setFixedSize(180, 50)
         back_btn.setStyleSheet("""
@@ -2649,13 +2601,11 @@ class ECGMenu(QGroupBox):
     # ----------------------------- Load Default -----------------------------
 
     def create_load_default_content(self):
-        """Create the load default content widget - matching original design"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(40, 40, 40, 40)  # Increased margins
-        layout.setSpacing(25)  # Added spacing between elements
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(25)
 
-        # Enhanced title with modern styling
         title = QLabel("HINT")
         title.setStyleSheet("""
             QLabel {
@@ -2674,7 +2624,6 @@ class ECGMenu(QGroupBox):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Enhanced main content frame
         content_frame = QFrame()
         content_frame.setStyleSheet("""
             QFrame {
@@ -2690,7 +2639,6 @@ class ECGMenu(QGroupBox):
         content_layout = QVBoxLayout(content_frame)
         content_layout.setSpacing(20)
 
-        # Enhanced first label
         label1 = QLabel("Adopt Factory Default Config?")
         label1.setStyleSheet("""
             QLabel {
@@ -2708,7 +2656,6 @@ class ECGMenu(QGroupBox):
         label1.setAlignment(Qt.AlignCenter)
         content_layout.addWidget(label1)
 
-        # Enhanced second label with warning styling
         label2 = QLabel("The Previous Configure Will Be Lost!")
         label2.setStyleSheet("""
             QLabel {
@@ -2728,13 +2675,11 @@ class ECGMenu(QGroupBox):
 
         layout.addWidget(content_frame)
 
-        # Enhanced button row with better spacing
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(30)  # Increased spacing between buttons
+        btn_row.setSpacing(30)
 
-        # Enhanced No button
         btn_no = QPushButton("No")
-        btn_no.setFixedSize(140, 55)  # Increased button size
+        btn_no.setFixedSize(140, 55)
         btn_no.setStyleSheet("""
             QPushButton {
                 font: bold 16pt Arial;
@@ -2759,9 +2704,8 @@ class ECGMenu(QGroupBox):
         """)
         btn_no.clicked.connect(self.hide_sliding_panel)  # Close the sliding panel
 
-        # Enhanced Yes button
         btn_yes = QPushButton("Yes")
-        btn_yes.setFixedSize(140, 55)  # Increased button size
+        btn_yes.setFixedSize(140, 55)
         btn_yes.setStyleSheet("""
             QPushButton {
                 font: bold 16pt Arial;
@@ -2799,13 +2743,11 @@ class ECGMenu(QGroupBox):
     # ----------------------------- Version Info -----------------------------
 
     def create_version_info_content(self):
-        """Create the version info content widget - matching original design"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(40, 40, 40, 40)  # Increased margins
-        layout.setSpacing(25)  # Added spacing between elements
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(25)
 
-        # Enhanced title with modern styling
         title = QLabel("Version Info")
         title.setStyleSheet("""
             QLabel {
@@ -2824,7 +2766,6 @@ class ECGMenu(QGroupBox):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Enhanced inner frame with modern styling
         inner_frame = QWidget()
         inner_layout = QGridLayout(inner_frame)
         inner_frame.setStyleSheet("""
@@ -2838,8 +2779,8 @@ class ECGMenu(QGroupBox):
                 box-shadow: 0 8px 25px rgba(0,0,0,0.15);
             }
         """)
-        inner_layout.setSpacing(20)  # Increased spacing between grid items
-        inner_layout.setContentsMargins(25, 25, 25, 25)  # Added margins inside frame
+        inner_layout.setSpacing(20)
+        inner_layout.setContentsMargins(25, 25, 25, 25)
 
         versions = [
             ("1. System Version:", "VER 1.6"),
@@ -2848,7 +2789,6 @@ class ECGMenu(QGroupBox):
         ]
 
         for i, (label_text, version_text) in enumerate(versions):
-            # Enhanced label styling
             label = QLabel(label_text)
             label.setStyleSheet("""
                 QLabel {
@@ -2866,7 +2806,6 @@ class ECGMenu(QGroupBox):
             """)
             label.setAlignment(Qt.AlignCenter)
             
-            # Enhanced value styling
             value = QLabel(version_text)
             value.setStyleSheet("""
                 QLabel {
@@ -2889,9 +2828,9 @@ class ECGMenu(QGroupBox):
 
         layout.addWidget(inner_frame)
 
-        # Enhanced Exit button
+        # Exit button
         btn = QPushButton("Exit")
-        btn.setFixedSize(160, 55)  # Increased button size
+        btn.setFixedSize(160, 55)
         btn.setStyleSheet("""
             QPushButton {
                 font: bold 16pt Arial;
@@ -2923,7 +2862,6 @@ class ECGMenu(QGroupBox):
     # ----------------------------- Factory Maintain -----------------------------
 
     def create_factory_maintain_content(self):
-        """Create the factory maintenance content widget - simplified and stable"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(50, 50, 50, 50)
@@ -2981,7 +2919,6 @@ class ECGMenu(QGroupBox):
         label.setAlignment(Qt.AlignCenter)
         form_layout.addWidget(label)
 
-        # Input field - SIMPLIFIED STYLING
         key_input = QLineEdit()
         key_input.setText("0-999999")
         key_input.setStyleSheet("""
@@ -3000,7 +2937,6 @@ class ECGMenu(QGroupBox):
         key_input.setAlignment(Qt.AlignCenter)
         form_layout.addWidget(key_input)
 
-        # SIMPLIFIED EVENT HANDLING - No lambda functions
         def on_entry_click():
             if key_input.text() == "0-999999":
                 key_input.setText("")
@@ -3035,7 +2971,6 @@ class ECGMenu(QGroupBox):
                     }
                 """)
 
-        # Use proper event handling instead of lambda
         key_input.focusInEvent = lambda event: self._handle_focus_in(event, key_input, on_entry_click)
         key_input.focusOutEvent = lambda event: self._handle_focus_out(event, key_input, on_focus_out)
 
@@ -3048,11 +2983,9 @@ class ECGMenu(QGroupBox):
             else:
                 QMessageBox.critical(self.parent(), "Invalid", "Please enter a valid number between 0 and 999999.")
 
-        # Button frame
         btn_frame = QVBoxLayout()
         btn_frame.setSpacing(20)
         
-        # Confirm button - SIMPLIFIED STYLING
         confirm_btn = QPushButton("Confirm")
         confirm_btn.setFixedSize(180, 55)
         confirm_btn.setStyleSheet("""
@@ -3078,7 +3011,6 @@ class ECGMenu(QGroupBox):
         confirm_btn.clicked.connect(on_confirm)
         btn_frame.addWidget(confirm_btn, alignment=Qt.AlignCenter)
 
-        # Exit button - SIMPLIFIED STYLING
         exit_btn = QPushButton("Exit")
         exit_btn.setFixedSize(180, 55)
         exit_btn.setStyleSheet("""
@@ -3109,7 +3041,6 @@ class ECGMenu(QGroupBox):
         return widget
 
     def _handle_focus_in(self, event, widget, callback):
-        """Helper method to handle focus in events safely"""
         try:
             callback()
         except Exception as e:
@@ -3119,7 +3050,6 @@ class ECGMenu(QGroupBox):
             QLineEdit.focusInEvent(widget, event)
 
     def _handle_focus_out(self, event, widget, callback):
-        """Helper method to handle focus out events safely"""
         try:
             callback()
         except Exception as e:
@@ -3132,10 +3062,9 @@ class ECGMenu(QGroupBox):
 
     def show_exit(self):
         content_widget = self.create_exit_content()
-        self.show_sliding_panel(content_widget, "Exit Application")
+        self.show_sliding_panel(content_widget, "Exit Application", "Exit")
 
     def create_exit_content(self):
-        """Create the exit content widget - enhanced design with larger boxes"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(40, 40, 40, 40)
@@ -3156,7 +3085,6 @@ class ECGMenu(QGroupBox):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Main content frame with larger size
         content_frame = QFrame()
         content_frame.setStyleSheet("""
             QFrame {
@@ -3185,7 +3113,6 @@ class ECGMenu(QGroupBox):
 
         layout.addWidget(content_frame)
 
-        # Enhanced buttons with larger size
         button_frame = QFrame()
         button_frame.setStyleSheet("background: transparent; margin: 25px;")
         button_layout = QHBoxLayout(button_frame)
@@ -3209,7 +3136,7 @@ class ECGMenu(QGroupBox):
                 background: #c62828;
             }
         """)
-        yes_btn.clicked.connect(lambda: QApplication.quit())
+        yes_btn.clicked.connect(self.go_back_to_ecg_dashboard)
 
         no_btn = QPushButton("No")
         no_btn.setFixedSize(160, 70)
@@ -3236,3 +3163,41 @@ class ECGMenu(QGroupBox):
         layout.addWidget(button_frame)
 
         return widget
+
+    def go_back_to_ecg_dashboard(self):
+        self.hide_sliding_panel()
+        
+        try:
+            parent = self.parent()
+            
+            while parent:
+                if hasattr(parent, 'page_stack'):
+                    parent.page_stack.setCurrentIndex(0)
+                    print("Navigated to dashboard via page_stack")
+                    return
+                parent = parent.parent()
+            
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, 'stacked_widget'):
+                    parent.stacked_widget.setCurrentIndex(0)
+                    print("Navigated to dashboard via stacked_widget")
+                    return
+                parent = parent.parent()
+            
+            app = QApplication.instance()
+            for widget in app.topLevelWidgets():
+                if hasattr(widget, 'page_stack'):
+                    widget.page_stack.setCurrentIndex(0)
+                    print("Navigated to dashboard via app topLevelWidgets")
+                    return
+                elif hasattr(widget, 'stacked_widget'):
+                    widget.stacked_widget.setCurrentIndex(0)
+                    print("Navigated to dashboard via app stacked_widget")
+                    return
+                    
+        except Exception as e:
+            print(f"Navigation error: {e}")
+        
+        print("Could not navigate to dashboard - fallback to just hiding panel")
+        self.hide_sliding_panel()

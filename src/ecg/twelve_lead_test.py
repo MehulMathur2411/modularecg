@@ -355,6 +355,7 @@ class ECGTestPage(QWidget):
             ("Load Default", self.ecg_menu.show_load_default, "#ffc107"),
             ("Version", self.ecg_menu.show_version_info, "#17a2b8"),
             ("Factory Maintain", self.ecg_menu.show_factory_maintain, "#dc3545"),
+            ("Exit", self.ecg_menu.show_exit, "#6c757d"),
         ]
         
         # Create buttons and store them in a list
@@ -426,6 +427,9 @@ class ECGTestPage(QWidget):
         
         created_buttons[8].clicked.disconnect()
         created_buttons[8].clicked.connect(self.ecg_menu.show_factory_maintain)
+
+        created_buttons[9].clicked.disconnect()
+        created_buttons[9].clicked.connect(self.ecg_menu.show_exit)
 
         # Recording Toggle Button Section
         recording_frame = QFrame()
@@ -561,11 +565,10 @@ class ECGTestPage(QWidget):
         self.stop_btn = QPushButton("Stop")
         self.export_pdf_btn = QPushButton("Export as PDF")
         self.export_csv_btn = QPushButton("Export as CSV")
-        self.back_btn = QPushButton("Back")
-        self.ecg_plot_btn = QPushButton("Open ECG Live Plot")
         self.sequential_btn = QPushButton("Show All Leads Sequentially")
         self.twelve_leads_btn = QPushButton("12:1")
         self.six_leads_btn = QPushButton("6:2")
+        self.back_btn = QPushButton("Back")
 
         green_color = """
             QPushButton {
@@ -601,22 +604,20 @@ class ECGTestPage(QWidget):
         self.stop_btn.setStyleSheet(green_color)
         self.export_pdf_btn.setStyleSheet(green_color)
         self.export_csv_btn.setStyleSheet(green_color)
-        self.back_btn.setStyleSheet(green_color)
-        self.ecg_plot_btn.setStyleSheet(green_color)
         self.sequential_btn.setStyleSheet(green_color)
         self.twelve_leads_btn.setStyleSheet(green_color)
         self.six_leads_btn.setStyleSheet(green_color)
+        self.back_btn.setStyleSheet(green_color)
 
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
         btn_layout.addWidget(self.export_pdf_btn)
         btn_layout.addWidget(self.export_csv_btn)
-        btn_layout.addWidget(self.back_btn)
-        btn_layout.addWidget(self.ecg_plot_btn)
         btn_layout.addWidget(self.sequential_btn)
         btn_layout.addWidget(self.twelve_leads_btn)
         btn_layout.addWidget(self.six_leads_btn)
         main_vbox.addLayout(btn_layout)
+        btn_layout.addWidget(self.back_btn)
 
         self.start_btn.clicked.connect(self.start_acquisition)
         self.stop_btn.clicked.connect(self.stop_acquisition)
@@ -646,11 +647,10 @@ class ECGTestPage(QWidget):
 
         self.export_pdf_btn.clicked.connect(self.export_pdf)
         self.export_csv_btn.clicked.connect(self.export_csv)
-        self.back_btn.clicked.connect(self.go_back)
         self.sequential_btn.clicked.connect(self.show_sequential_view)
         self.twelve_leads_btn.clicked.connect(self.twelve_leads_overlay)
         self.six_leads_btn.clicked.connect(self.six_leads_overlay)
-        # self.ecg_plot_btn.clicked.connect(lambda: run_ecg_live_plot(port='/cu.usbserial-10', baudrate=9600, buffer_size=100))
+        self.back_btn.clicked.connect(self.go_back)
 
         main_hbox = QHBoxLayout(self.grid_widget)
     
